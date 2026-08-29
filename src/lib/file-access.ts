@@ -17,6 +17,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from './prisma'
 import { ApiError } from './api-helpers'
 import { requireCan } from './permission'
+import { isChatArchiveProject } from './chat-archive'
 import { resolveStoredFile, streamFile } from './file-storage'
 
 export type FileAccessAction = 'VIEW' | 'DOWNLOAD'
@@ -42,10 +43,11 @@ export async function accessFile(
   if (!file) throw ApiError.notFound('文件不存在')
 
   // 条目文件走 FILE_REQ 范围终审；计划外文件回退项目 view（见文件头）
+  // 聊天记录项目（内部共享文件池）：登录即可读
   if (file.requirementId) {
     const permAction = action === 'DOWNLOAD' ? 'download' : 'view'
     await requireCan(userId, permAction, { type: 'FILE_REQ', id: file.requirementId })
-  } else {
+  } else if (!(await isChatArchiveProject(file.projectId))) {
     await requireCan(userId, 'view', { type: 'PROJECT', id: file.projectId })
   }
 

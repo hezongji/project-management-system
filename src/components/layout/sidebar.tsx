@@ -38,6 +38,7 @@ import {
   FolderOpen,
   ShoppingCart,
   MessageSquare,
+  Smartphone,
   Settings,
   Search,
   Menu,
@@ -261,7 +262,7 @@ export function Sidebar({ className }: SidebarProps) {
         {!sbCollapsed && (
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold leading-tight">项目管理系统</p>
-            <p className="truncate text-[11px] leading-tight text-muted-foreground">示例装备</p>
+            <p className="truncate text-[11px] leading-tight text-muted-foreground">华澄装备</p>
           </div>
         )}
         {!mobile && !sbCollapsed && (
@@ -293,6 +294,19 @@ export function Sidebar({ className }: SidebarProps) {
         )}
       </div>
       {renderNav(mobile, sbCollapsed)}
+      {/* 手机聊天 App 下载入口（2026-08-29 W4，owner 要求显眼位置） */}
+      <Link
+        href="/download"
+        onClick={() => mobile && setMobileMenuOpen(false)}
+        title="手机聊天 App 下载"
+        className={cn(
+          'mx-3 mb-1 mt-auto flex items-center rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10',
+          sbCollapsed && 'justify-center px-0',
+        )}
+      >
+        <Smartphone className={cn('h-5 w-5 shrink-0', !sbCollapsed && 'mr-3')} />
+        {!sbCollapsed && '手机聊天 App 下载'}
+      </Link>
       <div className="border-t p-3">
         <div className={cn('flex items-center', sbCollapsed ? 'flex-col gap-1' : 'justify-between')}>
           <Select value={theme || 'light'} onValueChange={setTheme}>

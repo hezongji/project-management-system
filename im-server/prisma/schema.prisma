@@ -513,6 +513,7 @@ enum MsgType {
   TEXT
   IMAGE
   FILE
+  VOICE
   TASK_CARD
   PHASE_CARD
   SYSTEM

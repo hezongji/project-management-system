@@ -76,8 +76,38 @@ export async function canAdvance(
 }
 
 /**
- * ★ 状态推进通知（事务内调用）：通知「清单发布人」+ 相关收货人
- * pg_notify im_events + Notification + TodoItem（幂等）
+ * ★ 2026-08-25：订单相关通知目标收集 —— 清单发布人（可多张 SR 溯源）∪ 项目全体成员 ∪ ADMIN
+ * （采购状态/到货状态必须反馈给整个项目组成员，直到确认收货闭环）
+ */
+export async function orderNotifyTargets(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  projectId: string,
+): Promise<Set<string>> {
+  const targets = new Set<string>()
+  // 1) 溯源所有关联清单的发布人（1:N：一张订单可合并多品牌任务）
+  const srs = await tx.supplierRequest.findMany({
+    where: { orderId },
+    select: { request: { select: { requesterId: true } } },
+  })
+  srs.forEach((sr) => {
+    if (sr.request?.requesterId) targets.add(sr.request.requesterId)
+  })
+  // 2) 项目全体成员（OWNER/MANAGER/MEMBER 全体，采购进度全员可见）
+  const members = await tx.projectMember.findMany({
+    where: { projectId },
+    select: { userId: true },
+  })
+  members.forEach((m) => targets.add(m.userId))
+  // 3) ADMIN 总览
+  const admins = await tx.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { id: true } })
+  admins.forEach((a) => targets.add(a.id))
+  return targets
+}
+
+/**
+ * ★ 状态推进通知（事务内调用）：通知「清单发布人 + 项目全体成员 + ADMIN」+ 相关收货人
+ * pg_notify im_events + Notification（幂等）
  */
 export async function notifyOrderAdvanced(
   tx: Prisma.TransactionClient,
@@ -92,18 +122,9 @@ export async function notifyOrderAdvanced(
   const body = `「${order.title}」状态已从「${fromLabel}」推进为「${toLabel}」`
   const link = `/purchase?orderId=${order.id}`
 
-  // 收集通知对象：清单发布人（requester）∪ 订单指派收货人
-  const targets = new Set<string>()
-  // 溯源：订单 ← SupplierRequest ← PurchaseRequest(requester)
-  const sr = await tx.supplierRequest.findUnique({
-    where: { orderId: order.id },
-    select: { requestId: true, request: { select: { requesterId: true } } },
-  })
-  if (sr?.request?.requesterId) targets.add(sr.request.requesterId)
+  // 收集通知对象：清单发布人 ∪ 项目全体成员 ∪ ADMIN ∪ 订单指派收货人
+  const targets = await orderNotifyTargets(tx, order.id, order.projectId)
   if (extra?.receiverId) targets.add(extra.receiverId)
-  // ADMIN 也收一份进度通知（总览）
-  const admins = await tx.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { id: true } })
-  admins.forEach((a) => targets.add(a.id))
 
   for (const userId of Array.from(targets)) {
     await tx.notification.create({

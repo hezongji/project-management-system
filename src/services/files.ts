@@ -6,6 +6,7 @@
 import { ApiService } from './api'
 import type { ApiResponse } from '@/types'
 import type {
+  AdhocFileItem,
   CatalogNode,
   CatalogTreeData,
   FileMatrixData,
@@ -74,6 +75,19 @@ export const FilesService = {
     ApiService.get<FileRequirementItem>(
       `/file-requirements/${requirementId}?projectId=${projectId}`,
     ).then(unwrap),
+
+  // ───────────────────────── 计划外文件（临时文件，W4）─────────────────────────
+
+  /** 计划外文件列表（按项目+目录） */
+  getAdhocFiles: (projectId: string, catalogId: string) =>
+    ApiService.get<{ items: AdhocFileItem[] }>(
+      `/files?projectId=${encodeURIComponent(projectId)}&catalogId=${encodeURIComponent(catalogId)}`,
+    ).then(unwrap),
+
+  /** 移动计划外文件到项目内其他目录 */
+  moveFile: (fileId: string, catalogId: string) =>
+    ApiService.patch(`/files/${fileId}/move`, { catalogId }),
+
 
   /** 我的待提交文件（跨项目，工作台卡片） */
   getMyDeliverables: (params?: { page?: number; limit?: number }) => {

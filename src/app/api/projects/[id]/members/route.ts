@@ -103,16 +103,17 @@ export const POST = apiHandler<Ctx>(async (request: NextRequest, { params }) => 
     select: { userId: true },
   })
   const existingIds = new Set(existingRows.map((m) => m.userId))
-  const toAdd = ids.filter((id) => !existingIds.has(id))
+  // 注意：形参用 uid 命名——早期版本形参 id 遮蔽路由参数 id，曾致 projectId=userId FK 500（QA-B4c bug①）
+  const toAdd = ids.filter((uid) => !existingIds.has(uid))
 
   if (toAdd.length > 0) {
     const role = body.role ?? 'MEMBER'
     // P2-3 修复：加成员+拉群+NOTIFY 包进单事务（PG NOTIFY 事务内投递，回滚不发出）
     await prisma.$transaction(async (tx) => {
       await tx.projectMember.createMany({
-        data: toAdd.map((id) => ({
-          projectId: id,
-          userId: id,
+        data: toAdd.map((uid) => ({
+          projectId: id, // 路由参数 id（项目）——bug①：曾被形参 id 遮蔽致 projectId=userId → FK violation 500
+          userId: uid,
           role,
           title: body.title ?? null,
         })),
@@ -129,12 +130,12 @@ export const POST = apiHandler<Ctx>(async (request: NextRequest, { params }) => 
           select: { userId: true },
         })
         const inConv = new Set(existingConv.map((m) => m.userId))
-        const toJoin = toAdd.filter((id) => !inConv.has(id))
+        const toJoin = toAdd.filter((uid) => !inConv.has(uid))
         if (toJoin.length > 0) {
           await tx.conversationMember.createMany({
-            data: toJoin.map((id) => ({
+            data: toJoin.map((uid) => ({
               conversationId: group.id,
-              userId: id,
+              userId: uid,
               role: 'MEMBER',
             })),
           })
@@ -144,7 +145,7 @@ export const POST = apiHandler<Ctx>(async (request: NextRequest, { params }) => 
               id: group.id,
               type: 'PROJECT_GROUP',
               projectId: id,
-              members: toJoin.map((id) => ({ userId: id })),
+              members: toJoin.map((uid) => ({ userId: uid })),
             },
           })})`
         }
@@ -153,7 +154,8 @@ export const POST = apiHandler<Ctx>(async (request: NextRequest, { params }) => 
   }
 
   // 权限缓存：新成员获得项目可见性、项目级缓存整体失效
-  for (const id of toAdd) invalidatePerms(id)
+  // （invalidateProject 用路由参数 id=projectId；循环变量改名 uid 避免遮蔽歧义）
+  for (const uid of toAdd) invalidatePerms(uid)
   invalidateProject(id)
 
   return ok(

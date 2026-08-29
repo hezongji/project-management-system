@@ -19,9 +19,27 @@ import { cn, bytesToSize, getInitials } from '@/lib/utils'
 import { FileService } from '@/services/file'
 import { MessageCard } from './cards'
 import { type MessageItem, type FileMeta, formatMessageTime, previewText } from './utils'
-import { FileText, Image as ImageIcon, Reply, Undo2 } from 'lucide-react'
+import { FileText, Image as ImageIcon, FolderOpen, Reply, Undo2, Play, Pause, Volume2 } from 'lucide-react'
 
-export function ImAvatar({ name, className }: { name?: string | null; className?: string }) {
+export function ImAvatar({
+  name,
+  avatar,
+  className,
+}: {
+  name?: string | null
+  avatar?: string | null
+  className?: string
+}) {
+  if (avatar) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={avatar}
+        alt={name || '成员'}
+        className={cn('h-9 w-9 shrink-0 rounded-full object-cover', className)}
+      />
+    )
+  }
   return (
     <div
       className={cn(
@@ -50,7 +68,7 @@ function QuotedStrip({ quoted, mine }: { quoted: MessageItem; mine: boolean }) {
   )
 }
 
-function ImageBubble({ message }: { message: MessageItem }) {
+function ImageBubble({ message, onImageClick }: { message: MessageItem; onImageClick?: (m: MessageItem) => void }) {
   const meta = message.fileMeta as FileMeta | null | undefined
   const fileId = meta?.fileId
   const [url, setUrl] = useState<string | null>(null)
@@ -102,7 +120,7 @@ function ImageBubble({ message }: { message: MessageItem }) {
   }
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="block">
+      <button type="button" onClick={() => (onImageClick ? onImageClick(message) : setOpen(true))} className="block">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={url}
@@ -128,6 +146,8 @@ function FileBubble({ message, mine }: { message: MessageItem; mine: boolean }) 
   const fileId = meta?.fileId
   const name = meta?.name || '文件'
   const size = meta?.size != null ? bytesToSize(meta.size) : ''
+  // v1.1 W3：归档归属行（项目/目录发送时快照；老消息缺字段不显示）
+  const archive = meta?.projectName ? `${meta.projectName}${meta.catalogName ? '/' + meta.catalogName : ''}` : ''
   const [downloading, setDownloading] = useState(false)
 
   const download = async () => {
@@ -159,7 +179,76 @@ function FileBubble({ message, mine }: { message: MessageItem; mine: boolean }) 
           {size}
           {downloading ? ' · 下载中…' : fileId ? ' · 点击下载' : ''}
         </div>
+        {archive && (
+          <div className="mt-0.5 flex items-center gap-1 text-[10px] opacity-80">
+            <FolderOpen className="h-3 w-3 shrink-0" />
+            <span className="truncate">{archive}</span>
+          </div>
+        )}
       </div>
+    </button>
+  )
+}
+
+function VoiceBubble({ message, mine }: { message: MessageItem; mine: boolean }) {
+  const meta = message.fileMeta as FileMeta | null | undefined
+  const voiceId = meta?.voiceId
+  const duration = Math.round(meta?.duration ?? 0)
+  const [playing, setPlaying] = useState(false)
+  const [error, setError] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const urlRef = useRef<string | null>(null)
+
+  // fetch→blob→objectURL（Bearer 鉴权，<audio src> 直链必 401）
+  const load = async () => {
+    if (!voiceId || urlRef.current) return
+    try {
+      const { api } = await import('@/services/api')
+      const response = await api.get(`/im/voice/${voiceId}`, { responseType: 'blob' })
+      const blob = response.data as Blob
+      urlRef.current = URL.createObjectURL(blob)
+      const audio = new Audio(urlRef.current)
+      audio.onended = () => setPlaying(false)
+      audioRef.current = audio
+      audio.play().then(() => setPlaying(true)).catch(() => {})
+    } catch {
+      setError(true)
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      audioRef.current?.pause()
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current)
+    }
+  }, [])
+
+  const toggle = async () => {
+    if (!audioRef.current) {
+      await load()
+      return
+    }
+    if (playing) {
+      audioRef.current.pause()
+      setPlaying(false)
+    } else {
+      audioRef.current.play().then(() => setPlaying(true)).catch(() => {})
+    }
+  }
+
+  if (!voiceId || error) {
+    return (
+      <span className="flex items-center gap-1.5 text-xs opacity-80">
+        <Volume2 className="h-4 w-4" />语音{error ? '（加载失败）' : ''}
+      </span>
+    )
+  }
+  return (
+    <button type="button" onClick={toggle} className="flex items-center gap-2 py-0.5">
+      <span className={cn('relative flex h-6 w-6 items-center justify-center rounded-full', mine ? 'bg-black/10' : 'bg-primary/10')}>
+        {playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+      </span>
+      <span className="text-xs">{duration > 0 ? `${duration}"` : '语音'}</span>
     </button>
   )
 }
@@ -169,19 +258,23 @@ function BubbleContent({
   mine,
   projectId,
   onNavigate,
+  onImageClick,
 }: {
   message: MessageItem
   mine: boolean
   projectId?: string | null
   onNavigate: (path: string) => void
+  onImageClick?: (m: MessageItem) => void
 }) {
   switch (message.type) {
     case 'TEXT':
       return <span className="whitespace-pre-wrap break-words">{message.content}</span>
     case 'IMAGE':
-      return <ImageBubble message={message} />
+      return <ImageBubble message={message} onImageClick={onImageClick} />
     case 'FILE':
       return <FileBubble message={message} mine={mine} />
+    case 'VOICE':
+      return <VoiceBubble message={message} mine={mine} />
     case 'TASK_CARD':
     case 'PHASE_CARD':
     case 'ISSUE':
@@ -209,6 +302,12 @@ export interface MessageBubbleProps {
   onRevoke?: (m: MessageItem) => void
   projectId?: string | null
   onNavigate?: (path: string) => void
+  /** 移动端微信式样式（头像/气泡/按钮常显） */
+  variant?: 'desktop' | 'mobile'
+  /** 移动端：双击对方头像 → 插入@（群聊） */
+  onAvatarDoubleTap?: (m: MessageItem) => void
+  /** 移动端：点击图片 → 外部全屏浏览（微信式） */
+  onImageClick?: (m: MessageItem) => void
 }
 
 export function MessageBubble({
@@ -222,8 +321,24 @@ export function MessageBubble({
   onRevoke,
   projectId,
   onNavigate,
+  variant = 'desktop',
+  onAvatarDoubleTap,
+  onImageClick,
 }: MessageBubbleProps) {
   const router = useRouter()
+  const isMobile = variant === 'mobile'
+  // 移动端双击头像检测（两次 tap <300ms）
+  const lastTap = useRef(0)
+  const handleAvatarTap = () => {
+    if (!isMobile || !onAvatarDoubleTap) return
+    const now = Date.now()
+    if (now - lastTap.current < 300) {
+      lastTap.current = 0
+      onAvatarDoubleTap(message)
+    } else {
+      lastTap.current = now
+    }
+  }
   // 卡片跳转统一追加来源标记：目标页显示「已定位 · 来自:消息卡片」（已有 src= 则不覆盖）
   const go = (path: string) => {
     const target = path.includes('src=')
@@ -259,20 +374,27 @@ export function MessageBubble({
   const isCard = CARD_TYPES.has(message.type)
 
   return (
-    <div className={cn('group flex items-end gap-2', mine ? 'flex-row-reverse' : 'flex-row')}>
-      <ImAvatar name={senderName} />
-      <div className={cn('flex max-w-[70%] flex-col', mine ? 'items-end' : 'items-start')}>
+    <div className={cn('group flex items-end gap-2', mine ? 'flex-row-reverse' : 'flex-row', isMobile && 'gap-1.5')}>
+      {/* 移动端微信式：我方不显头像 */}
+      {(!isMobile || !mine) && (
+        <div onTouchEnd={handleAvatarTap} className={cn(isMobile && onAvatarDoubleTap && 'cursor-pointer')}>
+          <ImAvatar name={senderName} avatar={message.sender?.avatar} />
+        </div>
+      )}
+      <div className={cn('flex max-w-[70%] flex-col', isMobile && 'max-w-[75%]', mine ? 'items-end' : 'items-start')}>
         {showName && !mine && <div className="mb-0.5 px-1 text-xs text-muted-foreground">{senderName}</div>}
         <div
           className={cn(
             'rounded-lg',
             !isCard && (mine ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'),
+            !isCard && isMobile && (mine ? 'bg-[#95ec69] text-foreground' : 'bg-white text-foreground shadow-sm'),
             !isCard && 'px-3 py-2 text-sm',
+            isMobile && 'rounded-2xl',
             mentionedMe && 'ring-2 ring-amber-400/70',
           )}
         >
           {quoted && <QuotedStrip quoted={quoted} mine={mine} />}
-          <BubbleContent message={message} mine={mine} projectId={projectId} onNavigate={go} />
+          <BubbleContent message={message} mine={mine} projectId={projectId} onNavigate={go} onImageClick={onImageClick} />
         </div>
         <div
           className={cn(
@@ -285,7 +407,11 @@ export function MessageBubble({
             <button
               type="button"
               onClick={() => onReply(message)}
-              className="flex items-center gap-0.5 opacity-0 transition-opacity hover:text-primary group-hover:opacity-100"
+              className={cn(
+                'flex items-center gap-0.5 hover:text-primary',
+                // 移动端触屏常显（修复 group-hover 触屏不可见缺陷）；桌面保持 hover 显隐
+                isMobile ? 'opacity-70' : 'opacity-0 transition-opacity group-hover:opacity-100',
+              )}
             >
               <Reply className="h-3 w-3" />
               回复
@@ -295,7 +421,10 @@ export function MessageBubble({
             <button
               type="button"
               onClick={() => onRevoke(message)}
-              className="flex items-center gap-0.5 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+              className={cn(
+                'flex items-center gap-0.5 hover:text-destructive',
+                isMobile ? 'opacity-70' : 'opacity-0 transition-opacity group-hover:opacity-100',
+              )}
             >
               <Undo2 className="h-3 w-3" />
               撤回

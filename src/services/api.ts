@@ -91,9 +91,10 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && typeof window !== 'undefined') {
       localStorage.removeItem('auth-token')
       localStorage.removeItem('auth-user')
-      // 避免登录页自身 401 时死循环
+      // 避免登录页自身 401 时死循环；带 next 回跳（W1-I3）
       if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login'
+        const next = encodeURIComponent(window.location.pathname + window.location.search)
+        window.location.href = `/login?next=${next}`
       }
     }
     const status = error.response?.status ?? 0

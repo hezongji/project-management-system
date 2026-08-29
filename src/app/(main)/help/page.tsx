@@ -14,7 +14,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { HELP_SECTIONS } from '@/components/help/help-data'
-import { BookOpen, LifeBuoy } from 'lucide-react'
+import { BookOpen, LifeBuoy, Smartphone } from 'lucide-react'
+import Link from 'next/link'
 
 export default function HelpPage() {
   const [activeId, setActiveId] = useState(HELP_SECTIONS[0]?.id ?? '')
@@ -67,6 +68,13 @@ export default function HelpPage() {
           <p className="mt-1 text-sm text-muted-foreground">
             按模块快速了解系统的功能与使用方式，内容与线上版本保持同步。没有找到答案时，请联系系统管理员。
           </p>
+          <Link
+            href="/download"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/15"
+          >
+            <Smartphone className="h-4 w-4" />
+            手机聊天 App（PM 聊天）下载
+          </Link>
         </div>
       </div>
 

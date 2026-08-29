@@ -43,6 +43,7 @@ function monthStart(): Date {
 const orderItemSchema = z.object({
   name: z.string().trim().min(1, '物料名称不能为空'),
   spec: z.string().trim().optional().nullable(),
+  param: z.string().trim().optional().nullable(), // ★ 2026-08-25 字段统一：参数分列
   brand: z.string().trim().optional().nullable(),
   quantity: z.number().positive('数量必须大于 0'),
   unit: z.string().trim().min(1).default('件'),
@@ -251,6 +252,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
           create: body.items.map((it) => ({
             name: it.name,
             spec: it.spec ?? null,
+            param: it.param ?? null,
             brand: it.brand ?? null,
             quantity: it.quantity,
             unit: it.unit,

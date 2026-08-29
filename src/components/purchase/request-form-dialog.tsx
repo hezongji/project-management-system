@@ -3,7 +3,7 @@
 /**
  * 采购清单（提需求）弹窗（2026-08-22 采购模块 Step 3）
  *
- * 任何项目成员可发起：选项目 → 标题/用途/类别/紧急度/期望到货 → 明细行（名称/规格/数量/品牌/期望价）
+ * 任何项目成员可发起：选项目 → 标题/用途/类别/紧急度/期望到货 → 明细行（名称/型号/参数/单位/数量/品牌/备注）
  * 提交 POST /api/purchase-requests（submit=true 直接 SUBMITTED / 否则 DRAFT）
  */
 
@@ -40,14 +40,15 @@ interface ProjectOption {
 
 interface ItemRow {
   name: string
-  spec: string
+  spec: string // 型号
+  param: string // 参数（★ 2026-08-25 字段统一：与 AI 工作台标准列一致）
   brand: string
   quantity: string
   unit: string
-  targetPrice: string
+  remark: string
 }
 
-const EMPTY_ROW: ItemRow = { name: '', spec: '', brand: '', quantity: '1', unit: '件', targetPrice: '' }
+const EMPTY_ROW: ItemRow = { name: '', spec: '', param: '', brand: '', quantity: '1', unit: '件', remark: '' }
 
 const PRIORITY_LABEL: Record<string, string> = {
   LOW: '不急',
@@ -130,10 +131,11 @@ export function RequestFormDialog({ open, onOpenChange, defaultProjectId = null,
         items: items.map((r) => ({
           name: r.name.trim(),
           spec: r.spec.trim() || null,
+          param: r.param.trim() || null,
           brand: r.brand.trim() || null,
           quantity: Number(r.quantity),
           unit: r.unit.trim() || '件',
-          targetPrice: r.targetPrice ? Number(r.targetPrice) : null,
+          remark: r.remark.trim() || null,
         })),
         submit: directSubmit,
       })
@@ -233,27 +235,34 @@ export function RequestFormDialog({ open, onOpenChange, defaultProjectId = null,
               <table className="w-full text-xs">
                 <thead className="bg-muted/50 text-left text-muted-foreground">
                   <tr>
-                    <th className="px-2 py-1.5 font-medium">物料名称 *</th>
-                    <th className="px-2 py-1.5 font-medium">规格</th>
+                    <th className="w-10 px-2 py-1.5 font-medium">序号</th>
+                    <th className="px-2 py-1.5 font-medium">名称 *</th>
+                    <th className="px-2 py-1.5 font-medium">型号</th>
+                    <th className="px-2 py-1.5 font-medium">参数</th>
+                    <th className="w-16 px-2 py-1.5 font-medium">单位</th>
+                    <th className="w-16 px-2 py-1.5 font-medium">数量 *</th>
                     <th className="px-2 py-1.5 font-medium">品牌</th>
-                    <th className="w-20 px-2 py-1.5 font-medium">数量 *</th>
-                    <th className="w-24 px-2 py-1.5 font-medium">期望价(元)</th>
-                    <th className="w-10 px-2 py-1.5" />
+                    <th className="px-2 py-1.5 font-medium">备注</th>
+                    <th className="w-8 px-2 py-1.5" />
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((row, idx) => (
                     <tr key={idx} className="border-t">
-                      <td className="px-1.5 py-1">
-                        <Input className="h-7 text-xs" value={row.name} onChange={(e) => setRow(idx, { name: e.target.value })} />
+                      <td className="px-2 py-1 text-center text-muted-foreground">{idx + 1}</td>
+                      <td className="px-1 py-1">
+                        <Input className="h-7 text-xs" value={row.name} onChange={(e) => setRow(idx, { name: e.target.value })} placeholder="如 不锈钢球阀" />
                       </td>
-                      <td className="px-1.5 py-1">
-                        <Input className="h-7 text-xs" value={row.spec} onChange={(e) => setRow(idx, { spec: e.target.value })} />
+                      <td className="px-1 py-1">
+                        <Input className="h-7 text-xs" value={row.spec} onChange={(e) => setRow(idx, { spec: e.target.value })} placeholder="DN50" />
                       </td>
-                      <td className="px-1.5 py-1">
-                        <Input className="h-7 text-xs" value={row.brand} onChange={(e) => setRow(idx, { brand: e.target.value })} />
+                      <td className="px-1 py-1">
+                        <Input className="h-7 text-xs" value={row.param} onChange={(e) => setRow(idx, { param: e.target.value })} placeholder="PN16" />
                       </td>
-                      <td className="px-1.5 py-1">
+                      <td className="px-1 py-1">
+                        <Input className="h-7 text-xs" value={row.unit} onChange={(e) => setRow(idx, { unit: e.target.value })} />
+                      </td>
+                      <td className="px-1 py-1">
                         <Input
                           className="h-7 text-xs"
                           type="number"
@@ -263,17 +272,13 @@ export function RequestFormDialog({ open, onOpenChange, defaultProjectId = null,
                           onChange={(e) => setRow(idx, { quantity: e.target.value })}
                         />
                       </td>
-                      <td className="px-1.5 py-1">
-                        <Input
-                          className="h-7 text-xs"
-                          type="number"
-                          min="0"
-                          step="any"
-                          value={row.targetPrice}
-                          onChange={(e) => setRow(idx, { targetPrice: e.target.value })}
-                        />
+                      <td className="px-1 py-1">
+                        <Input className="h-7 text-xs" value={row.brand} onChange={(e) => setRow(idx, { brand: e.target.value })} />
                       </td>
-                      <td className="px-1.5 py-1 text-center">
+                      <td className="px-1 py-1">
+                        <Input className="h-7 text-xs" value={row.remark} onChange={(e) => setRow(idx, { remark: e.target.value })} />
+                      </td>
+                      <td className="px-1 py-1 text-center">
                         <Button
                           type="button"
                           size="sm"

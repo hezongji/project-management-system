@@ -86,6 +86,20 @@ export interface RequirementListData {
   can: { create: boolean }
 }
 
+/** 计划外文件（临时文件，W4：PC 端文件移动） */
+export interface AdhocFileItem {
+  id: string
+  name: string
+  originalName: string
+  size: number
+  mimeType: string
+  version: number
+  checksum: string | null
+  createdAt: string
+  uploadedById: string
+  uploadedBy: { id: string; name: string; email: string } | null
+}
+
 /** 我的待提交文件（2026-08-21 个人交付物：跨项目 mine 接口） */
 export interface MyDeliverableItem {
   id: string

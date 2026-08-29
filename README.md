@@ -1,144 +1,93 @@
-# 项目管理系统（Project Management System）
+# PM 项目管理系统 + 企业即时通讯（IM）
 
-<div align="center">
+一套面向工程项目型企业的管理系统：项目全生命周期管理（阶段/任务/文件/采购/费用）+ 内置企业微信式即时通讯，含独立的 Android 聊天 App。
 
-一个面向**工程项目全生命周期管理**的现代化团队协作平台，覆盖从销售立项到结项归档的六阶段全流程，集成采购管理、费用报销、即时通讯、AI 助手与多维数据视图。
+## 功能概览
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-blue)](https://www.typescriptlang.org/)
-[![Prisma](https://img.shields.io/badge/Prisma-6.14-2D3748)](https://www.prisma.io/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791)](https://www.postgresql.org/)
+### 项目管理系统（Web）
+- 项目管理：项目台账、阶段、任务、交付物（文件条目/目录树）
+- 采购管理：采购申请、供应商、订单、到货
+- 费用管理：报销单
+- 组织架构、权限分配、帮助中心、质检驾驶舱
 
-</div>
+### 即时通讯（IM）
+- 网页端 `/messages` + 独立 Android App「PM 聊天」（WebView 壳）
+- 会话：单聊 / 群聊 / 项目群（成员自动=项目成员）
+- 消息：文字、图片、文件、语音、@提及、@所有人、引用回复、撤回、多选转发删除
+- 通讯录：公司组织架构（部门树）+ 项目通讯录，点人直接开聊、多选建群
+- 附件自动归档：项目群附件自动入项目文件夹，普通聊天附件入「聊天记录」共享文件夹
+- 群公告、消息免打扰、会话置顶/删除、未读聚合
 
----
-
-## ✨ 功能特性
-
-### 项目全生命周期
-- **六阶段流程**：销售立项 → 启动与工艺设计 → 电气与机械设计 → 生产发货与现场安装 → 调试验收运维 → 结项归档
-- **22 环节标准模板**：预置工程行业标准流程模板，新建项目一键实例化，实例可编辑（环节增删、调序、依赖调整）
-- **依赖驱动状态机**：完成后开始 / 开始后开始两种依赖，就绪自动触发 + 通知，进度自动计算
-
-### 任务与协作
-- 任务 CRUD + 修订快照 + 批注 + 评论，支持标注与回滚
-- 文件目录树 + 交付物多版本管理（上传自动提取文本）
-- Excel 清单导入导出（结构化数据）
-
-### 采购管理
-- 采购申请 → 订单 → 合同 → 付款 → 到货，完整状态机
-- 分批到货、追加采购、金额三级脱敏（采购部/财务部/其余）
-
-### 费用报销
-- **报销单 + 费用明细**模型，支持 11 类费用分类 + 自定义
-- 审批流：提交 → 管理员审批 → 财务打款，可驳回重提
-- 权限：金额仅提交人 / 财务 / 管理员可见
-
-### 即时通讯
-- Socket.IO 实时聊天，支持群聊、卡片消息、@提及
-- 问题上报闭环（问题 → 会话 → 任务 → 解决）
-
-### AI 助手
-- 项目上下文问答，自动聚合全部文件提取文本
-- 文件解读、数据提取、采购分解、会议纪要
-
-### 权限与安全
-- **双轴权限模型**：角色管操作（permission），可见性管数据（visibility）
-- JWT 认证 + 登录限流 + SQL 注入防护 + XSS 防护 + 财务脱敏
-
-### 体验
-- 5 套主题（浅色/深色/暖阳/雾蓝/柔夜）
-- 全屏窗口控制（最小化/最大化/关闭）
-- 响应式设计，移动端可用
-
----
-
-## 🛠 技术栈
+## 技术栈
 
 | 层 | 技术 |
-|---|---|
-| 前端框架 | Next.js 14（App Router）+ React 18 |
-| 语言 | TypeScript 5.6 |
-| 样式 | Tailwind CSS + shadcn/ui + Radix UI |
-| 状态管理 | Zustand + TanStack Query |
-| 数据库 | PostgreSQL 16 + Prisma ORM |
-| 认证 | NextAuth + JWT（jose）+ bcrypt |
-| 实时通信 | Socket.IO |
-| 文件处理 | xlsx / pdf-parse / mammoth / jszip |
-| 拼音 | pinyin-pro（中文姓名转全拼登录账号） |
+|----|------|
+| 前端 | Next.js 16 (App Router) + React + TypeScript + Tailwind CSS + TanStack Query |
+| IM 后端 | Node.js + Socket.IO（独立进程 `im-server`） |
+| 数据库 | PostgreSQL + Prisma |
+| Android App | Kotlin WebView 壳（`mobile-app/`），原生 MediaRecorder 录音桥 |
 
----
+## 架构
 
-## 🚀 快速开始
+```
+┌─ PM 网页 (Next.js :3001) ── 项目管理 / IM 页面 / REST API
+│        │ 共享 PostgreSQL（User/Conversation/Message/File...）
+│        │ 共享 JWT_SECRET
+├─ im-server (Socket.IO :3002) ── 实时消息推送
+└─ mobile-app (Android WebView 壳) ── 加载 /im，原生录音 JS 桥
+```
 
-### 环境要求
+关键设计：IM 与 PM 系统**共享同一数据库与 JWT 体系**，App 与网页消息天然同步，无需额外同步机制。
 
-- Node.js 18+
-- PostgreSQL 14+（或 16）
-
-### 安装
+## 快速开始
 
 ```bash
-# 1. 克隆仓库
-git clone https://github.com/hezongji/project-management-system.git
-cd project-management-system
-
-# 2. 安装依赖
+# 1. 安装依赖
 npm install
+cd im-server && npm install && cd ..
 
-# 3. 配置环境变量
-cp .env.example .env.local
-# 编辑 .env.local，填入数据库连接等配置
+# 2. 配置环境变量（复制示例，填入真实值）
+cp .env.example .env
+cp im-server/.env.example im-server/.env
 
-# 4. 初始化数据库
+# 3. 初始化数据库
 npx prisma migrate deploy
-npm run db:seed   # 写入演示数据（含 22 环节模板、费用分类等）
+npx prisma db seed
 
-# 5. 启动开发服务器
-npm run dev
-# 访问 http://localhost:3000
+# 4. 启动
+npm run dev            # PM 主服务（:3000）
+cd im-server && node src/index.js   # IM 服务（:3002）
 ```
 
-### 生产构建
+> ⚠️ `.env` 文件含敏感配置（数据库密码、JWT_SECRET、AI key），已加入 `.gitignore`，切勿提交。
+
+## Android App 打包
 
 ```bash
-npm run build
-npm start
+# 需 JDK 17 + Android SDK (compileSdk 34)
+bash scripts/build-apk.sh   # 产出 mobile-app/app/build/outputs/apk/release/pm-chat-<version>.apk
 ```
 
----
+首次运行会生成自签 keystore（`mobile-app/keystore/`，已 gitignore），**请务必异地备份**——丢失会导致已装用户必须卸载重装。
 
-## 📁 项目结构
+## 部署
+
+参考 `deploy/`（Docker Compose 全栈编排）与 `k8s/`（Kubernetes 示例）。生产环境务必：
+- 替换所有 `.env` / `k8s/secrets.yaml` 占位符为真实强随机值
+- nginx 配置 APK 分发目录与 Socket.IO WebSocket 升级（见 `deploy/nginx.conf`）
+
+## 目录结构
 
 ```
-src/
-├── app/                        # Next.js App Router 页面与 API
-│   ├── (auth)/                 # 登录/注册
-│   ├── (main)/                 # 主应用（工作台/项目/任务/文件/采购/视图/设置）
-│   └── api/                    # API 路由（projects/tasks/files/purchase/expense-claims/im/ai...）
-├── components/                 # React 组件
-│   ├── ui/                     # 基础 UI（shadcn）
-│   ├── layout/                 # 布局（侧边栏/顶栏/主题）
-│   ├── projects/               # 项目（阶段树/阶段卡/权限矩阵）
-│   ├── expense/                # 费用报销（报销单/明细/审批）
-│   └── ai/                     # AI 助手
-├── lib/                        # 核心逻辑
-│   ├── permission.ts           # 角色操作权限
-│   ├── data-visibility.ts      # 数据可见性 + 财务脱敏
-│   ├── phase-engine.ts         # 阶段状态机 + 项目实例化
-│   └── ...
-├── services/                   # 前端 API 封装（axios）
-├── store/                      # Zustand 状态
-└── prisma/                     # 数据库 schema / 迁移 / 种子
+src/            PM 主服务（Next.js 页面 + API + IM 前端组件）
+im-server/      独立 IM 实时服务（Socket.IO）
+mobile-app/     Android WebView 壳（原生录音桥）
+prisma/         数据库 schema 与迁移
+scripts/        打包 / QA 回归 / 验证脚本
+deploy/         Docker 部署
+k8s/            Kubernetes 示例
 ```
 
----
+## 许可证
 
----
-
-## 📄 许可证
-
-[MIT License](LICENSE) © 2026 hezongji
-
-> 本项目为技术框架开源，演示数据均为虚构。
+[MIT](./LICENSE)

@@ -37,6 +37,7 @@ const patchSchema = z.object({
       z.object({
         name: z.string().trim().min(1),
         spec: z.string().trim().optional().nullable(),
+        param: z.string().trim().optional().nullable(), // ★ 2026-08-25 字段统一
         brand: z.string().trim().optional().nullable(),
         quantity: z.number().positive(),
         unit: z.string().trim().min(1).default('件'),
@@ -64,7 +65,7 @@ export const GET = apiHandler(async (request: NextRequest, { params }: Ctx) => {
       owner: { select: { id: true, name: true } },
       creator: { select: { id: true, name: true } },
       supplementaryOf: { select: { id: true, code: true, title: true } },
-      supplierRequest: { select: { id: true, code: true } },
+      supplierRequests: { select: { id: true, code: true, brand: true }, orderBy: { code: 'asc' } },
       items: true,
       arrivals: {
         include: {
@@ -195,6 +196,7 @@ export const PATCH = apiHandler<Ctx>(async (request: NextRequest, { params }) =>
           orderId: existing.id,
           name: it.name,
           spec: it.spec ?? null,
+          param: it.param ?? null,
           brand: it.brand ?? null,
           quantity: it.quantity,
           unit: it.unit,
@@ -252,7 +254,7 @@ export const DELETE = apiHandler<Ctx>(async (request: NextRequest, { params }: C
       creatorId: true,
       ownerId: true,
       contract: { select: { id: true, status: true } },
-      supplierRequest: { select: { id: true, code: true, status: true, quotedAt: true } },
+      supplierRequests: { select: { id: true, code: true, status: true, quotedAt: true }, orderBy: { code: 'asc' } },
       _count: { select: { supplementaryItems: true, items: true, payments: true } },
     },
   })
@@ -288,22 +290,22 @@ export const DELETE = apiHandler<Ctx>(async (request: NextRequest, { params }: C
 
   // 事务级联：解链需求 → 未确认到货 → 明细 → 草稿合同 → 本体
   const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    // 1) SupplierRequest 解链：DRAFT 单可由需求转入（orderId+ORDERED），删单后回退可重转
+    // 1) SupplierRequests 解链（★ 1:N：可能多张品牌任务合并于本单）：DRAFT 单删后回退可重转
     let srDetached: string | null = null
-    let srRevertedTo: string | null = null
-    if (existing.supplierRequest) {
+    const srCodesReverted: Array<{ code: string; to: string | null }> = []
+    for (const sr of existing.supplierRequests) {
       const reverted =
-        existing.supplierRequest.status === 'ORDERED'
-          ? existing.supplierRequest.quotedAt != null
+        sr.status === 'ORDERED'
+          ? sr.quotedAt != null
             ? 'QUOTED'
             : 'PUBLISHED'
           : null
       await tx.supplierRequest.update({
-        where: { id: existing.supplierRequest.id },
+        where: { id: sr.id },
         data: { orderId: null, ...(reverted ? { status: reverted } : {}) },
       })
-      srDetached = existing.supplierRequest.code
-      srRevertedTo = reverted
+      srCodesReverted.push({ code: sr.code, to: reverted })
+      srDetached = srDetached ? `${srDetached}, ${sr.code}` : sr.code
     }
 
     // 2) 未确认到货（在途登记）→ 删除（GoodsArrivalItem 随 FK 级联）
@@ -332,7 +334,7 @@ export const DELETE = apiHandler<Ctx>(async (request: NextRequest, { params }: C
 
     return {
       supplierRequestDetached: srDetached,
-      supplierRequestRevertedTo: srRevertedTo,
+      supplierRequestsReverted: srCodesReverted,
       deletedPendingArrivals: arrivals.count,
       deletedItems: items.count,
       deletedContracts: contracts.count,

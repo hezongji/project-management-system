@@ -28,7 +28,16 @@ export const GET = apiHandler(async (request: NextRequest) => {
     include: {
       members: {
         include: {
-          user: { select: { id: true, name: true, email: true, avatar: true } },
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              avatar: true,
+              // v1.2：聊天页标题显示部门（单聊「姓名+部门」）
+              department: { select: { name: true } },
+            },
+          },
         },
       },
       messages: {
@@ -49,7 +58,13 @@ export const GET = apiHandler(async (request: NextRequest) => {
     const readAtByConv = new Map<string, Date | null>()
     for (const c of conversations) {
       const myMember = c.members.find((m) => m.userId === userId)
-      readAtByConv.set(c.id, myMember?.lastReadAt ?? null)
+      // v1.2 W1：unread cutoff = max(lastReadAt, hiddenAt)——删除会话期间的消息不计未读，
+      // 新消息到达时前端会调 prefs 清除 hiddenAt（微信「删除后新消息自动复活」语义）
+      let cutoff: Date | null = myMember?.lastReadAt ?? null
+      if (myMember?.hiddenAt && (!cutoff || myMember.hiddenAt > cutoff)) {
+        cutoff = myMember.hiddenAt
+      }
+      readAtByConv.set(c.id, cutoff)
     }
     // 批量拉取所有会话的消息 createdAt（仅取 lastReadAt 之后的计数）
     const groups = await prisma.message.groupBy({
@@ -82,6 +97,14 @@ export const GET = apiHandler(async (request: NextRequest) => {
       lastMessageAt: c.lastMessageAt,
       unread,
       myRole: myMember?.role ?? null,
+      // v1.2 W1：会话偏好（置顶/免打扰/删除隐藏），W2/W3 依赖
+      myPrefs: {
+        isPinned: myMember?.isPinned ?? false,
+        muted: myMember?.muted ?? false,
+        hiddenAt: myMember?.hiddenAt?.toISOString() ?? null,
+      },
+      announcement: c.announcement ?? null,
+      announcementAt: c.announcementAt?.toISOString() ?? null,
       lastMessage: lastMessage
         ? {
             id: lastMessage.id,
@@ -100,6 +123,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
         email: m.user.email,
         avatar: m.user.avatar,
         role: m.role,
+        departmentName: m.user.department?.name ?? null,
       })),
     })
   }

@@ -61,7 +61,11 @@ const createTodoSchema = z.object({
   title: z.string().trim().min(1, '待办标题不能为空').max(200),
   dueAt: z.string().optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
-  link: z.string().max(500).optional(),
+  link: z
+    .string()
+    .max(500)
+    .refine((v) => !v || v.startsWith('/'), '仅允许站内链接')
+    .optional(),
 })
 
 export const POST = apiHandler(async (request: NextRequest) => {

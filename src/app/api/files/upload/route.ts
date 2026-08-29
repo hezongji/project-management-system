@@ -12,6 +12,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { apiHandler, ok, ApiError, requireAuth } from '@/lib/api-helpers'
 import { requireCan } from '@/lib/permission'
+import { isChatArchiveProject } from '@/lib/chat-archive'
 import {
   fileConfig,
   isAllowedMime,
@@ -46,7 +47,11 @@ export const POST = apiHandler(async (request: NextRequest) => {
   })
   if (!catalog) throw ApiError.notFound('目录不存在')
 
-  await requireCan(user.userId, 'upload', { type: 'PROJECT', id: catalog.projectId })
+  // 聊天记录项目（内部共享文件池）：登录即可传，不受项目成员约束
+  const isArchive = await isChatArchiveProject(catalog.projectId)
+  if (!isArchive) {
+    await requireCan(user.userId, 'upload', { type: 'PROJECT', id: catalog.projectId })
+  }
 
   const project = await prisma.project.findUnique({
     where: { id: catalog.projectId },
@@ -71,7 +76,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
     throw ApiError.badRequest(`不允许的文件类型：${mimeType}`)
   }
   const used = await projectUsedBytes(catalog.projectId)
-  if (used + buffer.byteLength > cfg.quotaPerProject) {
+  if (!isArchive && used + buffer.byteLength > cfg.quotaPerProject) {
     throw ApiError.badRequest(
       `项目配额已满（已用 ${(used / 1024 / 1024 / 1024).toFixed(2)}GB / ${(cfg.quotaPerProject / 1024 / 1024 / 1024).toFixed(0)}GB）`,
     )

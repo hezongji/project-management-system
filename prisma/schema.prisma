@@ -497,6 +497,7 @@ enum FileAccessAction {
   APPROVE
   REJECT
   OBSOLETE
+  MOVE
 }
 
 model ResourcePermission {
@@ -546,6 +547,8 @@ model Conversation {
   project      Project? @relation(fields: [projectId], references: [id])
   createdBy    String
   lastMessageAt DateTime @default(now())
+  announcement String?                                 // 群公告（v1.2 W1，仅 OWNER/ADMIN 可发布）
+  announcementAt DateTime?
   members      ConversationMember[]
   messages     Message[]
   @@index([projectId])
@@ -560,6 +563,8 @@ model ConversationMember {
   role           MemberRole   @default(MEMBER)
   lastReadAt     DateTime?
   muted          Boolean  @default(false)
+  isPinned       Boolean  @default(false)              // 置顶（v1.2 W1）
+  hiddenAt       DateTime?                             // 删除会话（本地隐藏，新消息自动复活，v1.2 W1）
   joinedAt       DateTime @default(now())
   @@unique([conversationId, userId])
   @@index([userId])
@@ -569,6 +574,7 @@ enum MsgType {
   TEXT
   IMAGE
   FILE
+  VOICE
   TASK_CARD
   PHASE_CARD
   SYSTEM
@@ -837,8 +843,8 @@ model SupplierRequest {                             // ★ 品牌采购任务（
   quoteAmount Decimal? @db.Decimal(14,2)           // 供应商报价总额（= 明细 sum，冗余）
   quoteNote   String?                              // 报价备注（付款条件、交期等）
   quotedAt    DateTime?
-  // ── 下单关联（1:1：本表持 FK，PurchaseOrder.supplierRequest 为反向导航）──
-  orderId     String?   @unique                    // 转成的采购订单（一个需求 → 一张订单）
+  // ── 下单关联（★ 2026-08-25 重构 1:N：多品牌任务可合并到同一张订单，按供应商归单）──
+  orderId     String?                              // 所属采购订单（同供应商多品牌合并）
   order       PurchaseOrder? @relation("SupplierRequestOrder", fields: [orderId], references: [id])
   creatorId   String                               // 采购经办人
   creator     User    @relation("SupplierRequestCreator", fields: [creatorId], references: [id])
@@ -896,8 +902,8 @@ model PurchaseOrder {                               // ★ 采购订单（订单
   owner         User?               @relation("PurchaseOwner", fields: [ownerId], references: [id])
   creatorId     String
   creator       User                @relation("PurchaseCreator", fields: [creatorId], references: [id])
-  // ★ 溯源：来自哪个采购需求（1:1 反向导航，FK 在 SupplierRequest.orderId）
-  supplierRequest SupplierRequest?  @relation("SupplierRequestOrder")
+  // ★ 溯源：来自哪些采购需求（★ 2026-08-25 重构 1:N：一个供应商一张订单，可合并多品牌任务）
+  supplierRequests SupplierRequest[] @relation("SupplierRequestOrder")
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
 
@@ -990,6 +996,7 @@ model PurchaseOrderItem {
   order       PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   name        String                  // 物料名称
   spec        String?                 // 规格型号
+  param       String?                 // ★ 参数（2026-08-25 字段统一：与清单/需求明细对齐，便于多批次合并汇总）
   brand       String?                 // ★ 品牌（贯穿清单→需求→订单全链路）
   quantity    Decimal  @db.Decimal(12,2) // 下单数量
   unit        String   @default("件")

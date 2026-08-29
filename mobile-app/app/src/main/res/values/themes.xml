@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 首帧 splash 主题：白底 + 居中图标，随后 MainActivity 接管 -->
+    <style name="Theme.PMChat" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_bg</item>
+        <item name="colorPrimary">@color/pm_blue</item>
+        <item name="colorPrimaryDark">@color/pm_blue_dark</item>
+        <item name="colorAccent">@color/pm_blue</item>
+    </style>
+</resources>

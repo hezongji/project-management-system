@@ -1,0 +1,90 @@
+[
+  {
+    "id": "I-01",
+    "level": "P2",
+    "title": "external-orgs 联系人API越权读取（不可见主体仍可按id直取联系人）",
+    "location": "api/external-orgs/[id]/contacts",
+    "status": "登记",
+    "batch": "B1"
+  },
+  {
+    "id": "I-02",
+    "level": "P2",
+    "title": "51用户仅1人配置页面权限（PM/MEMBER按默认集看不到采购页等，运营配置项）",
+    "location": "DB/运营",
+    "status": "登记",
+    "batch": "B0"
+  },
+  {
+    "id": "I-03",
+    "level": "P3",
+    "title": "PlaceholderPage 组件零使用（死代码）",
+    "location": "components/layout",
+    "status": "登记",
+    "batch": "B3"
+  },
+  {
+    "id": "I-04",
+    "level": "P3",
+    "title": "聚合端点拒访语义不一致（expense-claims非成员200空集 vs purchase-summary 403）",
+    "location": "api/projects/[id]/expense-claims 等",
+    "status": "登记",
+    "batch": "B1"
+  },
+  {
+    "id": "I-05",
+    "level": "P3",
+    "title": "projects/route.ts 注释「台账公开」与实现相悖 + Task 表无 createdAt",
+    "location": "api/projects / schema",
+    "status": "登记",
+    "batch": "B1"
+  },
+  {
+    "id": "I-06",
+    "level": "P2",
+    "title": "删项目遗留永久孤儿项目群会话（无人能解散）——B4c 已修复",
+    "location": "api/projects/[id] DELETE 事务",
+    "status": "已验证",
+    "batch": "B2b"
+  },
+  {
+    "id": "I-07",
+    "level": "P0",
+    "title": "/todos 页面不存在致工作台催办卡 404 —— B4 已修复（212bef3+58c428c）",
+    "location": "src/app/(main)/todos/page.tsx",
+    "status": "已验证",
+    "batch": "B0/B3"
+  },
+  {
+    "id": "I-08",
+    "level": "P1",
+    "title": "催办列表无「进入具体事务」跳转 —— B4 已修复",
+    "location": "src/app/(main)/page.tsx 催办列表",
+    "status": "已验证",
+    "batch": "B0"
+  },
+  {
+    "id": "I-09",
+    "level": "P2",
+    "title": "加项目成员接口必500（形参id遮蔽路由id致FK错）—— B4c 已修复（7f7f85f，项目链复跑转绿）",
+    "location": "api/projects/[id]/members/route.ts POST",
+    "status": "已验证",
+    "batch": "B2b"
+  },
+  {
+    "id": "I-10",
+    "level": "P3",
+    "title": "删任务不清理 sourceType=TASK 待办（点开404）—— B4c 已修复（7f7f85f）",
+    "location": "api/tasks/[id] DELETE 事务",
+    "status": "已验证",
+    "batch": "B2b"
+  },
+  {
+    "id": "I-11",
+    "level": "P2",
+    "title": "通知铃/工作台待办跳转无同源兜底 —— B4 已修复",
+    "location": "notification-bell.tsx / page.tsx",
+    "status": "已验证",
+    "batch": "B3"
+  }
+]

@@ -7,7 +7,8 @@
  * DELETE 项目 delete 物理删除（仅 ADMIN / 项目 OWNER；删除工程第 2 棒，§2）
  *                     —— 归档项目冻结不可删；存在采购订单（财务审计链）时引用保护拒绝；
  *                     事务级联：成员/阶段(任务·修订·批注·评论)/目录/条目(文件)/待办/通知/
- *     催办/采购清单/会话成员（会话本体保留，Conversation.projectId 由 FK SET NULL 解除）；
+ *     催办/采购清单/会话（会话+成员+消息级联删除；QA-B4c bug②：原仅清成员、会话本体
+ *     被 FK SET NULL 遗留孤儿群无人能解散，改为随项目一并删）；
  *                     logDelete 审计（projectId 置空：项目行已删，ActivityLog.projectId FK 不存在）
  *
  * 说明：
@@ -290,14 +291,19 @@ export const DELETE = apiHandler<Ctx>(async (request: NextRequest, { params }) =
     const conversationIds = conversations.map((c) => c.id)
     const purchaseRequestIds = purchaseReqs.map((p) => p.id)
 
-    // 2) 任务附属（批注/修订/评论）计数（随 Task Cascade，仅统计不显式删）
-    const [annotationCount, revisionCount, commentCount] = taskIds.length
-      ? await Promise.all([
-          tx.annotation.count({ where: { taskId: { in: taskIds } } }),
-          tx.taskRevision.count({ where: { taskId: { in: taskIds } } }),
-          tx.comment.count({ where: { taskId: { in: taskIds } } }),
-        ])
-      : [0, 0, 0]
+    // 2) 任务附属（批注/修订/评论）与项目群消息计数（随 Task/Conversation Cascade，仅统计不显式删）
+    const [annotationCount, revisionCount, commentCount, messageCount] = await Promise.all([
+      ...(taskIds.length
+        ? [
+            tx.annotation.count({ where: { taskId: { in: taskIds } } }),
+            tx.taskRevision.count({ where: { taskId: { in: taskIds } } }),
+            tx.comment.count({ where: { taskId: { in: taskIds } } }),
+          ]
+        : [Promise.resolve(0), Promise.resolve(0), Promise.resolve(0)]),
+      conversationIds.length
+        ? tx.message.count({ where: { conversationId: { in: conversationIds } } })
+        : Promise.resolve(0),
+    ])
 
     // 3) 明细级联（显式删除以精确统计）
     //    文件必须先删：File.requirementId 为 SET NULL，随条目删除会留孤儿记录
@@ -332,11 +338,16 @@ export const DELETE = apiHandler<Ctx>(async (request: NextRequest, { params }) =
         ],
       },
     })
-    // 会话成员解除（会话本体与消息保留供审计，Conversation.projectId 由 FK SET NULL 解除）
+    // 会话成员解除 + 会话/消息级联删除（QA-B4c bug②：原仅清成员、会话本体被 FK SET NULL
+    // 遗留孤儿群（无人能解散）；项目群属于项目生命周期数据，随项目一并物理删除，
+    // Message 经 Conversation FK onDelete: Cascade 级联）
     const conversationMembers = conversationIds.length
       ? await tx.conversationMember.deleteMany({
           where: { conversationId: { in: conversationIds } },
         })
+      : { count: 0 }
+    const conversationsDeleted = conversationIds.length
+      ? await tx.conversation.deleteMany({ where: { id: { in: conversationIds } } })
       : { count: 0 }
 
     // 4) 结构级联（大部分有 FK Cascade 兕底，显式删保统计准确）
@@ -376,6 +387,8 @@ export const DELETE = apiHandler<Ctx>(async (request: NextRequest, { params }) =
       notifications: notifications.count,
       urgeRecords: urgeRecords.count,
       conversationMembers: conversationMembers.count,
+      conversations: conversationsDeleted.count,
+      messages: messageCount,
       purchaseRequests: purchaseRequests.count,
       supplierRequests: supplierRequests.count,
       goodsArrivals: goodsArrivals.count,

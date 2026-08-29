@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { apiHandler, ok, requireAuth, ApiError } from '@/lib/api-helpers'
 import { getUserDeptName, isPurchaseDept } from '@/lib/data-visibility'
+import { orderNotifyTargets } from '@/lib/purchase-workflow'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
@@ -71,15 +72,8 @@ export const POST = apiHandler(async (request: NextRequest, { params }: { params
       })
     }
 
-    // ★ 通知清单发布人（PURCHASE_RECEIVED）
-    const sr = await tx.supplierRequest.findUnique({
-      where: { orderId: arrival.orderId },
-      select: { request: { select: { requesterId: true } } },
-    })
-    const targets = new Set<string>()
-    if (sr?.request?.requesterId) targets.add(sr.request.requesterId)
-    const admins = await tx.user.findMany({ where: { role: 'ADMIN', isActive: true }, select: { id: true } })
-    admins.forEach((a) => targets.add(a.id))
+    // ★ 2026-08-25 通知升级：发布人 ∪ 项目全体成员 ∪ ADMIN（确认收货闭环全员可见）
+    const targets = await orderNotifyTargets(tx, arrival.orderId, arrival.order.projectId)
     targets.delete(user.userId)
     for (const uid of Array.from(targets)) {
       await tx.notification.create({

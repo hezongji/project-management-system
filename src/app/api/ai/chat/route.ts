@@ -30,7 +30,7 @@ const BodySchema = z.object({
 function buildSystemPrompt(): string {
   const today = new Date().toISOString().slice(0, 10)
   return [
-    '你是「PM 系统」的内置 AI 助手，帮助项目管理系统（示例智能装备有限公司）的用户高效工作。',
+    '你是「PM 系统」的内置 AI 助手，帮助项目管理系统（华澄智能装备有限公司）的用户高效工作。',
     `今天是 ${today}。`,
     '',
     '数据使用铁律：',

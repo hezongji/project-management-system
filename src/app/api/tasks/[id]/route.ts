@@ -214,7 +214,9 @@ export const PATCH = apiHandler(async (request: NextRequest, context: RouteConte
  * 实现策略（复用引擎保证联动正确）：
  *  1. 非 CANCELLED 的任务先置为 CANCELLED → onTaskChanged 重算阶段
  *     （CANCELLED 已被引擎剔除出分母，§7.5 规则 4），随后物理删除；
- *  2. 子表（修订/标注/评论）均为 onDelete: Cascade，TodoItem.sourceId 无外键，删除安全；
+ *  2. 子表级联（schema 实况）：标注/评论 onDelete: Cascade 随任务删除；任务修订为审计
+ *     快照 onDelete: SetNull（taskId 置空保留历史，非遗 Cascade）；TodoItem.sourceId 无
+ *     外键 → 删除事务内显式清理 sourceType=TASK 待办（QA-B4c bug③，防孤儿待办）；
  *  3. 归档项目内任务只读，禁止删除；删后 invalidatePerms 清权限缓存。
  */
 export const DELETE = apiHandler(async (request: NextRequest, context: RouteContext) => {
@@ -239,7 +241,11 @@ export const DELETE = apiHandler(async (request: NextRequest, context: RouteCont
     await prisma.task.update({ where: { id }, data: { status: 'CANCELLED' } })
     await onTaskChanged(id).catch(() => null)
   }
-  await prisma.task.delete({ where: { id } })
+  // QA-B4c bug③：TASK 源待办 sourceId 无 FK，与任务删除同事务显式清理，防孤儿待办（点开 404）
+  await prisma.$transaction([
+    prisma.todoItem.deleteMany({ where: { sourceType: 'TASK', sourceId: id } }),
+    prisma.task.delete({ where: { id } }),
+  ])
   invalidatePerms()
 
   return ok({ deleted: true, id }, '任务已删除')

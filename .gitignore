@@ -152,5 +152,21 @@ prisma/data/generated/
 
 # 部署/运维脚本（含服务器密码/IP，不提交）
 *.sh
+!scripts/build-apk.sh
 DEPLOYMENT_GUIDE.md
 .audit/
+
+# Android 壳工程：构建产物与密钥（勿提交）
+mobile-app/build/
+mobile-app/.gradle/
+mobile-app/local.properties
+mobile-app/*.jks
+mobile-app/keystore/
+mobile-app/app/build/
+mobile-app/.idea/
+
+# 部署脚本（含构建期注入的敏感配置，如 NEXTAUTH_SECRET）——禁止提交
+server.js
+
+# QA 驾驶舱运行时数据（run-cockpit.mjs / qa-cockpit API 自动生成，勿提交）
+scripts/qa/qa-runs.json

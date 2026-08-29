@@ -27,10 +27,10 @@ type Ctx = { params: Promise<{ id: string }> }
 const itemInputSchema = z.object({
   name: z.string().trim().min(1),
   spec: z.string().trim().optional().nullable(),
+  param: z.string().trim().optional().nullable(), // ★ 2026-08-25 字段统一
   brand: z.string().trim().optional().nullable(),
   quantity: z.number().positive(),
   unit: z.string().trim().min(1).default('件'),
-  targetPrice: z.number().nonnegative().optional().nullable(),
   remark: z.string().trim().optional().nullable(),
 })
 
@@ -194,10 +194,10 @@ export const PATCH = apiHandler<Ctx>(async (request: NextRequest, { params }) =>
           requestId: existing.id,
           name: it.name,
           spec: it.spec ?? null,
+          param: it.param ?? null,
           brand: it.brand ?? null,
           quantity: it.quantity,
           unit: it.unit,
-          targetPrice: it.targetPrice ?? null,
           remark: it.remark ?? null,
         })),
       })

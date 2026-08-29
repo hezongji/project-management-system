@@ -15,8 +15,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CalendarClock,
   Download,
+  FileText,
+  FolderInput,
   FolderOpen,
   Grid3X3,
+  Loader2,
   Plus,
   Upload,
   User,
@@ -31,6 +34,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { TablePagination } from '@/components/ui/data-table'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -143,6 +153,41 @@ function FilesPageInner() {
   const pagination = reqData?.pagination
   const flatCatalogs = useMemo(() => flattenCatalogs(catalogs), [catalogs])
 
+  // ── 计划外文件（临时文件，W4：PC 端文件移动）──
+  const { data: adhocData, isLoading: adhocLoading, refetch: refetchAdhoc } = useQuery({
+    queryKey: ['adhoc-files', projectId, selectedCatalogId],
+    queryFn: () => FilesService.getAdhocFiles(projectId, selectedCatalogId!),
+    enabled: !!projectId && !!selectedCatalogId,
+  })
+  const adhocFiles = adhocData?.items ?? []
+  // 移动弹窗：目标目录选择
+  const [moveDialog, setMoveDialog] = useState<{ open: boolean; fileId: string; fileName: string; targetCatalogId: string }>({
+    open: false,
+    fileId: '',
+    fileName: '',
+    targetCatalogId: '',
+  })
+  const [moving, setMoving] = useState(false)
+
+  const handleMove = async () => {
+    if (!moveDialog.targetCatalogId || moving) return
+    setMoving(true)
+    try {
+      await FilesService.moveFile(moveDialog.fileId, moveDialog.targetCatalogId)
+      toast({ description: '文件已移动' })
+      setMoveDialog((s) => ({ ...s, open: false }))
+      void refetchAdhoc()
+    } catch (e) {
+      toast({
+        title: '移动失败',
+        description: e instanceof Error ? e.message : '请稍后再试',
+        variant: 'destructive',
+      })
+    } finally {
+      setMoving(false)
+    }
+  }
+
   useEffect(() => {
     setPage(1)
   }, [selectedCatalogId, statusFilter, mineOnly, overdueOnly, projectId])
@@ -240,7 +285,16 @@ function FilesPageInner() {
     await queryClient.invalidateQueries({ queryKey: ['catalogs', projectId] })
   }
   async function refreshRequirements() {
-    await queryClient.invalidateQueries({ queryKey: ['file-requirements'] })
+    // 文件条目状态被多处页面缓存（全局 staleTime 5min + refetchOnWindowFocus:false，
+    // 不主动失效就一直是旧数据）：上传/审核/删除后统一失效，避免
+    // 「详情已通过、项目页列表仍显示待提交」这类跨页不同步
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['file-requirements'] }), // /files 列表
+      queryClient.invalidateQueries({ queryKey: ['project-files'] }), // 项目详情页文件列表
+      queryClient.invalidateQueries({ queryKey: ['my-deliverables'] }), // 工作台我的待提交
+      queryClient.invalidateQueries({ queryKey: ['deliverable-board'] }), // 交付物催办看板
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }), // 仪表盘统计
+    ])
   }
 
   // ── 目录 CRUD ──
@@ -530,11 +584,98 @@ function FilesPageInner() {
                 onPageChange={setPage}
               />
             )}
+
+            {/* ── 计划外文件（临时文件，W4）── */}
+            {selectedCatalogId && (
+              <div className="mt-6 rounded-lg border bg-card p-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">临时文件（计划外上传）</h3>
+                  {adhocLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  聊天/工作中直接上传、未挂交付条目的文件。可移动到本项目其他目录。
+                </p>
+                {adhocFiles.length === 0 ? (
+                  <p className="mt-3 text-sm text-muted-foreground">本目录暂无临时文件</p>
+                ) : (
+                  <ul className="mt-3 divide-y">
+                    {adhocFiles.map((f) => (
+                      <li key={f.id} className="flex items-center gap-3 py-2">
+                        <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm">{f.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {(f.size / 1024).toFixed(1)} KB · {f.uploadedBy?.name || f.uploadedBy?.email || '未知'}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setMoveDialog({
+                              open: true,
+                              fileId: f.id,
+                              fileName: f.name,
+                              targetCatalogId: selectedCatalogId,
+                            })
+                          }
+                        >
+                          <FolderInput className="mr-1 h-3.5 w-3.5" />
+                          移动到…
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* 弹窗 */}
+      <Dialog
+        open={moveDialog.open}
+        onOpenChange={(open) => setMoveDialog((s) => ({ ...s, open }))}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>移动文件</DialogTitle>
+            <DialogDescription className="break-all">{moveDialog.fileName}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <p className="mb-1 text-sm font-medium">目标目录（本项目内）</p>
+              <Select
+                value={moveDialog.targetCatalogId}
+                onValueChange={(v) => setMoveDialog((s) => ({ ...s, targetCatalogId: v }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="选择目标目录" />
+                </SelectTrigger>
+                <SelectContent>
+                  {flatCatalogs.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setMoveDialog((s) => ({ ...s, open: false }))}>
+                取消
+              </Button>
+              <Button size="sm" disabled={!moveDialog.targetCatalogId || moving} onClick={handleMove}>
+                {moving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <FolderInput className="mr-1 h-3.5 w-3.5" />}
+                确认移动
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <CatalogDialog
         open={catalogDialog.open}
         onOpenChange={(open) => setCatalogDialog((s) => ({ ...s, open }))}
@@ -580,7 +721,9 @@ function FilesPageInner() {
       <RequirementDetailDrawer
         item={detailItem}
         onClose={closeDetail}
-        onChanged={() => queryClient.invalidateQueries({ queryKey: ['file-requirements'] })}
+        onChanged={() => {
+          void refreshRequirements()
+        }}
       />
     </div>
   )

@@ -13,6 +13,7 @@ import { prisma } from '@/lib/prisma'
 import { apiHandler, created, requireAuth, ApiError } from '@/lib/api-helpers'
 import { getUserDeptName, isPurchaseDept } from '@/lib/data-visibility'
 import { nextArrivalBatchNo } from '@/lib/purchase-codes'
+import { orderNotifyTargets } from '@/lib/purchase-workflow'
 import { requireCan } from '@/lib/permission'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
@@ -169,27 +170,22 @@ export const POST = apiHandler<Ctx>(async (request: NextRequest, { params }) => 
         })
       }
 
-      // 通知（★ V3：溯源发布人 + 项目 OWNER，pg_notify im_events）
-      const sr = await tx.supplierRequest.findUnique({
-        where: { orderId: order.id },
-        select: { request: { select: { requesterId: true } } },
-      })
-      const notifyTargets = new Set<string>()
-      if (sr?.request?.requesterId) notifyTargets.add(sr.request.requesterId)
-      const owner = await tx.projectMember.findFirst({
-        where: { projectId: order.projectId, role: 'OWNER' },
-        select: { userId: true },
-      })
-      if (owner) notifyTargets.add(owner.userId)
+      // ★ 2026-08-25 通知升级：发布人 ∪ 项目全体成员（采购/到货状态全员反馈）+ Notification 落库
+      const notifyTargets = await orderNotifyTargets(tx, order.id, order.projectId)
       notifyTargets.delete(user.userId)
       for (const uid of Array.from(notifyTargets)) {
+        const nTitle = `到货登记：${order.code}`
+        const nBody = `订单「${order.title}」批次「${batchNo}」已到货 ${body.items.length} 项物料${
+          allDone ? '，全部到齐' : ''
+        }`
+        await tx.notification.create({
+          data: { userId: uid, type: 'PURCHASE_STATUS_CHANGED', title: nTitle, body: nBody, link: `/purchase?orderId=${order.id}` },
+        })
         await tx.$executeRaw`SELECT pg_notify('im_events', ${JSON.stringify({
           event: 'notify:push',
           userId: uid,
-          title: `到货登记：${order.code}`,
-          body: `订单「${batchNo}」已到货 ${body.items.length} 项物料${
-            allDone ? '，全部到齐' : ''
-          }`,
+          title: nTitle,
+          body: nBody,
           link: `/purchase?orderId=${order.id}`,
         })})`
       }

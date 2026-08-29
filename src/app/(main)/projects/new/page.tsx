@@ -4,7 +4,7 @@
  * /projects/new 新建项目向导（4 步）—— 依据《开发文档-项目管理系统重构》§8.2⑦、§7.4
  *
  * ① 基本信息：code 可留空自动生成（DEMO+签约年后两位+3位流水）、客户从外部主体 CUSTOMER
- *    拉取、金额/合同号/日期；校验：必填/金额格式/日期先后（signedAt≤plannedStart<plannedEnd）
+ *    拉取、日期；校验：必填/日期先后（signedAt≤plannedStart<plannedEnd）
  * ② 模板选择：默认20步 / 精简10步 / 已有自定义模板卡片 + 自定义编辑器（拖拽增删+岗位选择）；
  *    自定义流程需先「存为新模板」（§7.3 模板 API 仅 ADMIN，非 ADMIN 向导内只读提示，见报告）
  * ③ 成员与负责人：组织树选人（角色/头衔可编辑）+ 各阶段岗位自动匹配负责人（与 phase-engine
@@ -72,9 +72,7 @@ interface BasicForm {
   code: string
   name: string
   customerId: string
-  contractNo: string
   location: string
-  amount: string
   signedAt: string
   plannedStart: string
   plannedEnd: string
@@ -94,9 +92,7 @@ const BASIC_INIT: BasicForm = {
   code: '',
   name: '',
   customerId: '',
-  contractNo: '',
   location: '',
-  amount: '',
   signedAt: '',
   plannedStart: '',
   plannedEnd: '',
@@ -292,10 +288,6 @@ export default function NewProjectWizard() {
     if (!basic.customerId) errs.customerId = '请选择客户主体'
     if (basic.code.trim() && !/^DEMO\d{2}\d{3,}$/.test(basic.code.trim()))
       errs.code = '编号格式：DEMO+签约年后两位+流水（如 DEMO26001），留空自动生成'
-    if (basic.amount.trim()) {
-      if (!/^\d{1,12}(\.\d{1,2})?$/.test(basic.amount.trim()))
-        errs.amount = '金额格式：数字，最多两位小数'
-    }
     const { signedAt, plannedStart, plannedEnd } = basic
     if (plannedStart && plannedEnd && plannedStart >= plannedEnd)
       errs.plannedEnd = '计划结束必须晚于计划开始（plannedStart < plannedEnd）'
@@ -435,9 +427,7 @@ export default function NewProjectWizard() {
         ...(basic.code.trim() ? { code: basic.code.trim() } : {}),
         name: basic.name.trim(),
         customerId: basic.customerId || undefined,
-        contractNo: basic.contractNo.trim() || null,
         location: basic.location.trim() || null,
-        amount: basic.amount.trim() ? Number(basic.amount.trim()) : undefined,
         signedAt: basic.signedAt || null,
         plannedStart: basic.plannedStart || null,
         plannedEnd: basic.plannedEnd || null,
@@ -669,31 +659,6 @@ export default function NewProjectWizard() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-
-            <div className="space-y-2">
-              <Label htmlFor="wz-contract">合同编号</Label>
-              <Input
-                id="wz-contract"
-                value={basic.contractNo}
-                onChange={(e) => setBasic({ ...basic, contractNo: e.target.value })}
-                placeholder="如：SHYYHT0905"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="wz-amount">合同金额（元）</Label>
-              <Input
-                id="wz-amount"
-                inputMode="decimal"
-                value={basic.amount}
-                onChange={(e) => setBasic({ ...basic, amount: e.target.value })}
-                placeholder="如：1250000 或 1250000.00"
-                className={basicErrors.amount ? 'border-red-500' : ''}
-              />
-              {basicErrors.amount ? (
-                <p className="text-xs text-red-500">{basicErrors.amount}</p>
-              ) : null}
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="wz-location">施工地/项目地点</Label>
@@ -1244,8 +1209,6 @@ export default function NewProjectWizard() {
                   v={basic.code.trim() || `自动生成（DEMO${String(new Date(basic.signedAt || Date.now()).getFullYear()).slice(-2)}xxx）`}
                 />
                 <Kv k="客户主体" v={customers.find((c) => c.id === basic.customerId)?.name ?? '—'} />
-                <Kv k="合同编号" v={basic.contractNo || '—'} />
-                <Kv k="合同金额" v={basic.amount ? `¥ ${basic.amount}` : '—'} />
                 <Kv k="施工地" v={basic.location || '—'} />
                 <Kv k="优先级" v={PRIORITY_LABEL[basic.priority]} />
                 <Kv

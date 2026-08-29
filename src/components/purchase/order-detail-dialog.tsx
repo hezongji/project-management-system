@@ -502,13 +502,16 @@ export function OrderDetailDialog({ orderId, open, onOpenChange, onChanged, onSu
                 </div>
               </div>
 
-              {/* 明细表 */}
+              {/* 明细表（★ 2026-08-25 字段统一：序号/名称/型号/参数/单位/数量/品牌 + 订单特有单价/到货） */}
               <div className="overflow-x-auto rounded-md border">
                 <table className="w-full text-xs">
                   <thead className="bg-muted/50 text-left text-muted-foreground">
                     <tr>
-                      <th className="px-2 py-1.5 font-medium">物料</th>
-                      <th className="w-24 px-2 py-1.5 font-medium">品牌</th>
+                      <th className="w-10 px-2 py-1.5 font-medium">序号</th>
+                      <th className="px-2 py-1.5 font-medium">名称</th>
+                      <th className="px-2 py-1.5 font-medium">型号</th>
+                      <th className="px-2 py-1.5 font-medium">参数</th>
+                      <th className="px-2 py-1.5 font-medium">品牌</th>
                       <th className="w-24 px-2 py-1.5 text-right font-medium">单价</th>
                       <th className="w-24 px-2 py-1.5 text-right font-medium">下单量</th>
                       <th className="w-24 px-2 py-1.5 text-right font-medium">已到货</th>
@@ -516,15 +519,15 @@ export function OrderDetailDialog({ orderId, open, onOpenChange, onChanged, onSu
                     </tr>
                   </thead>
                   <tbody>
-                    {order.items.map((it) => {
+                    {order.items.map((it, i) => {
                       const remain = Math.max(it.quantity - it.receivedQty, 0)
                       const done = remain === 0
                       return (
                         <tr key={it.id} className="border-t">
-                          <td className="px-2 py-1.5">
-                            <span className="font-medium">{it.name}</span>
-                            {it.spec && <span className="ml-1 text-muted-foreground">{it.spec}</span>}
-                          </td>
+                          <td className="px-2 py-1.5 text-center text-muted-foreground">{i + 1}</td>
+                          <td className="px-2 py-1.5 font-medium">{it.name}</td>
+                          <td className="px-2 py-1.5 font-mono text-muted-foreground">{it.spec ?? '—'}</td>
+                          <td className="px-2 py-1.5 text-muted-foreground">{(it as { param?: string | null }).param ?? '—'}</td>
                           <td className="px-2 py-1.5 text-muted-foreground">{it.brand ?? '—'}</td>
                           <td className="px-2 py-1.5 text-right font-mono">{fmtMoney(it.unitPrice)}</td>
                           <td className="px-2 py-1.5 text-right font-mono">

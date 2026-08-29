@@ -33,6 +33,8 @@ export interface MiMoChatOptions {
   temperature?: number
   /** 毫秒，默认 60000 */
   timeoutMs?: number
+  /** ★ 2026-08-25：强制 JSON 输出（DeepSeek/OpenAI response_format json_object；不支持的上游静默忽略） */
+  jsonMode?: boolean
 }
 
 export interface MiMoChatResult {
@@ -142,6 +144,7 @@ export async function chatCompletion(
     model: mimoModel(),
     messages,
   }
+  if (opts.jsonMode) body.response_format = { type: 'json_object' }
   if (opts.tools) body.tools = opts.tools
   if (opts.tool_choice) body.tool_choice = opts.tool_choice
   // Bearer/DeepSeek 模式：发 max_tokens（reasoning 消耗输出 token，缺省 4096 防空 content）

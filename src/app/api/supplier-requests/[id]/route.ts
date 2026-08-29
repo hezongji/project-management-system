@@ -28,6 +28,8 @@ type Ctx = { params: Promise<{ id: string }> }
 
 const patchSchema = z.object({
   action: z.enum(['publish', 'quote', 'order', 'cancel']).optional(),
+  // ★ 2026-08-25：手动指定/调整供应商（采购人员按品牌归供应商用）
+  supplierId: z.string().optional().nullable(),
   // QUOTED 录入
   quoteAmount: z.number().nonnegative().optional(),
   quoteNote: z.string().trim().optional().nullable(),
@@ -100,6 +102,25 @@ export const PATCH = apiHandler<Ctx>(async (request: NextRequest, { params }) =>
   const data: Record<string, unknown> = {}
   if (body.remark !== undefined) data.remark = body.remark
 
+  // ★ 手动指定/调整供应商：仅采购部/ADMIN；传 null = 清空（回到待分配）；校验档案类型
+  if (body.supplierId !== undefined) {
+    if (!isPurchaser) throw ApiError.forbidden('仅采购部可指定供应商')
+    if (body.supplierId) {
+      const org = await prisma.externalOrg.findUnique({
+        where: { id: body.supplierId },
+        select: { id: true, type: true },
+      })
+      if (!org || org.type !== 'SUPPLIER') {
+        throw ApiError.badRequest('供应商不存在或类型不是 SUPPLIER')
+      }
+    }
+    data.supplierId = body.supplierId
+    // 已转订单的任务不允许再改供应商（订单已按旧供应商归单）
+    if (existing.status === 'ORDERED') {
+      throw ApiError.badRequest('已转订单的任务不可再改供应商（订单已按供应商归单生成）')
+    }
+  }
+
   if (body.action) {
     if (!isPurchaser) throw ApiError.forbidden('仅采购部可操作采购需求流转')
 
@@ -159,6 +180,7 @@ export const PATCH = apiHandler<Ctx>(async (request: NextRequest, { params }) =>
                 create: full.items.map((it) => ({
                   name: it.name,
                   spec: it.spec,
+                  param: it.param ?? null, // ★ 2026-08-25 字段统一：参数不再丢弃
                   brand: it.brand,
                   quantity: it.quantity,
                   unit: it.unit,

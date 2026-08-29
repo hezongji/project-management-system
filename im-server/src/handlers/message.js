@@ -61,18 +61,22 @@ function registerMessageHandlers(ctx, socket) {
           });
 
           // 2) TodoItem 落库 + todo:push
-          try {
-            const todoItem = await store.writeTodo({
-              userId: mentionedId,
-              title: `${senderLabel} 在会话中@了你`,
-              sourceType: 'MESSAGE',
-              sourceId: message.id,
-              link,
-              priority: 'MEDIUM',
-            });
-            io.to(config.ROOM_USER(mentionedId)).emit(SERVER.TODO_PUSH, { todoItem });
-          } catch (e) {
-            ctx.log.error('[message:send] writeTodo:', e.message);
+          // v1.2 W1 守卫：mentions>20（@所有人/大群）只写 Notification 跳过 TodoItem，
+          // 避免待办洪泛（Notification 保留不动）
+          if (Array.isArray(payload.mentions) && payload.mentions.length <= 20) {
+            try {
+              const todoItem = await store.writeTodo({
+                userId: mentionedId,
+                title: `${senderLabel} 在会话中@了你`,
+                sourceType: 'MESSAGE',
+                sourceId: message.id,
+                link,
+                priority: 'MEDIUM',
+              });
+              io.to(config.ROOM_USER(mentionedId)).emit(SERVER.TODO_PUSH, { todoItem });
+            } catch (e) {
+              ctx.log.error('[message:send] writeTodo:', e.message);
+            }
           }
         }
       }

@@ -49,7 +49,7 @@ export function PurchaseImportDialog({ open, onOpenChange, projectId, projectNam
   const { toast } = useToast()
   const [rows, setRows] = React.useState<ParsedRow[] | null>(null)
   const [importing, setImporting] = React.useState(false)
-  const [result, setResult] = React.useState<{ requestCode: string; srCount: number; unmatched: string[]; orders: Array<{ orderCode: string; title: string }> } | null>(null)
+  const [result, setResult] = React.useState<{ requestCode: string; srCount: number; unmatched: string[]; srs: Array<{ code: string; brand: string; itemCount: number; supplierName: string | null; title: string | null }> } | null>(null)
   const fileRef = React.useRef<HTMLInputElement>(null)
   // 项目选择（外部未指定时弹窗内选）
   const [selectedProjectId, setSelectedProjectId] = React.useState(projectId)
@@ -164,16 +164,13 @@ export function PurchaseImportDialog({ open, onOpenChange, projectId, projectNam
       })
       const data = res.data as {
         request?: { code: string }
-        supplierRequests?: Array<{ code: string; title: string | null; orderCode: string }>
+        supplierRequests?: Array<{ code: string; brand: string; itemCount: number; supplierName: string | null; title: string | null }>
       }
       setResult({
         requestCode: data?.request?.code ?? '',
         srCount: data?.supplierRequests?.length ?? 0,
         unmatched: [],
-        orders: (data?.supplierRequests ?? []).map((sr) => ({
-          orderCode: sr.orderCode ?? '',
-          title: sr.title ?? '',
-        })),
+        srs: data?.supplierRequests ?? [],
       })
       toast({ description: res.message ?? '导入成功' })
       onImported?.()
@@ -193,7 +190,7 @@ export function PurchaseImportDialog({ open, onOpenChange, projectId, projectNam
             导入 Excel 采购清单
           </DialogTitle>
           <DialogDescription>
-            上传后自动按「类别 × 供应商」分解采购任务，自动创建采购计划与供应商需求单
+            上传后自动按「品牌」分组分解为供应商采购任务，可在「供应商需求」中报价并一键转采购订单
             {projectName ? `（项目：${projectName}）` : ''}
           </DialogDescription>
         </DialogHeader>
@@ -207,19 +204,24 @@ export function PurchaseImportDialog({ open, onOpenChange, projectId, projectNam
             </div>
             <p className="text-sm">
               采购清单 <Badge variant="secondary" className="font-mono">{result.requestCode}</Badge> 已创建，
-              自动生成 <Badge className="font-mono">{result.srCount}</Badge> 张采购订单：
+              自动分解为 <Badge className="font-mono">{result.srCount}</Badge> 张供应商采购任务：
             </p>
-            {(result.orders ?? []).length > 0 && (
+            {(result.srs ?? []).length > 0 && (
               <div className="max-h-40 overflow-y-auto rounded-md border p-2">
-                {result.orders.map((o, i) => (
+                {result.srs.map((sr, i) => (
                   <p key={i} className="flex items-center gap-2 py-0.5 text-xs">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                    <span className="font-mono text-primary">{o.orderCode}</span>
-                    <span className="truncate text-muted-foreground">{o.title}</span>
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                    <span className="font-mono text-primary">{sr.code}</span>
+                    <span className="truncate text-muted-foreground">
+                      {sr.brand}（{sr.itemCount} 项{sr.supplierName ? ` · ${sr.supplierName}` : ' · 供应商待分配'}）
+                    </span>
                   </p>
                 ))}
               </div>
             )}
+            <p className="rounded-md border border-blue-200 bg-blue-50 p-2 text-xs text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-300">
+              下一步：到「供应商需求」Tab 打开任务 → 录入报价 → 点「转采购订单」自动生成订单（CG-*，草稿起步，再走发起合同 → 确认 → 正式下单）。
+            </p>
             {result.unmatched.length > 0 && (
               <p className="flex items-start gap-1.5 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-400">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -299,8 +301,8 @@ export function PurchaseImportDialog({ open, onOpenChange, projectId, projectNam
               </table>
             </div>
             <p className="text-xs text-muted-foreground">
-              ✓ 每组将自动创建「供应商需求单」并直接下单（生成采购订单）；
-              未填供应商的行保留在采购清单中待分解
+              ✓ 每个品牌自动生成一张「供应商采购任务」（供应商按名称自动匹配档案）；
+              订单需在任务中点「转采购订单」生成（可核对价格后再下单）
             </p>
             <DialogFooter className="gap-2">
               <Button variant="outline" onClick={() => setRows(null)}>

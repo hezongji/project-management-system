@@ -27,7 +27,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
     const token = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null
     const authed = useAuthStore.getState().isAuthenticated
     if (!token || !authed) {
-      router.replace('/login')
+      // 带 next 回跳参数（W1-I3：token 过期重登后回原页，如 /im）
+      const next = encodeURIComponent(window.location.pathname + window.location.search)
+      router.replace(`/login?next=${next}`)
       return
     }
     setChecked(true)

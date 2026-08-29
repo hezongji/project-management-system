@@ -28,10 +28,10 @@ export const dynamic = 'force-dynamic'
 const requestItemSchema = z.object({
   name: z.string().trim().min(1, '物料名称不能为空'),
   spec: z.string().trim().optional().nullable(),
+  param: z.string().trim().optional().nullable(), // ★ 2026-08-25 字段统一：参数分列（与 AI 工作台/订单一致）
   brand: z.string().trim().optional().nullable(),
   quantity: z.number().positive('数量必须大于 0'),
   unit: z.string().trim().min(1).default('件'),
-  targetPrice: z.number().nonnegative().optional().nullable(),
   remark: z.string().trim().optional().nullable(),
 })
 
@@ -67,6 +67,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status')
   const projectId = searchParams.get('projectId')
+  const category = searchParams.get('category') // ★ 页面筛选接线补参：类别维度（模型有 category 字段）
 
   // 可见性：ADMIN/采购部全量；其余=我提的 ∪ 成员项目的
   const visibility = await visiblePurchaseRequestFilter(user.userId, user.role)
@@ -77,6 +78,9 @@ export const GET = apiHandler(async (request: NextRequest) => {
       status: status as Prisma.EnumPurchaseRequestStatusFilter['equals'],
     }),
     ...(projectId && { projectId }),
+    ...(category && {
+      category: category as Prisma.EnumPurchaseCategoryFilter['equals'],
+    }),
   }
 
   const [items, total] = await Promise.all([
@@ -133,10 +137,10 @@ export const POST = apiHandler(async (request: NextRequest) => {
           create: body.items.map((it) => ({
             name: it.name,
             spec: it.spec ?? null,
+            param: it.param ?? null,
             brand: it.brand ?? null,
             quantity: it.quantity,
             unit: it.unit,
-            targetPrice: it.targetPrice ?? null,
             remark: it.remark ?? null,
           })),
         },

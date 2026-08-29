@@ -258,7 +258,7 @@ export async function visiblePurchaseOrderScope(
       { receiverId: userId },
       // ★ Step3：发布人链路——工程师发布清单后经 supplierRequest→request→requesterId
       // 可见对应订单进度（与 purchase-workflow.notifyOrderAdvanced 通知 requester 对齐）
-      { supplierRequest: { request: { requesterId: userId } } },
+      { supplierRequests: { some: { request: { requesterId: userId } } } },
       ...(grantOrderIds.length > 0 ? [{ id: { in: grantOrderIds } }] : []),
     ],
   }

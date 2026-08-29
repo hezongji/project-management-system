@@ -11,6 +11,7 @@ export type MsgType =
   | 'TEXT'
   | 'IMAGE'
   | 'FILE'
+  | 'VOICE'
   | 'TASK_CARD'
   | 'PHASE_CARD'
   | 'SYSTEM'
@@ -22,6 +23,13 @@ export interface FileMeta {
   size?: number | null
   mimeType?: string | null
   fileId?: string | null
+  /** 归档归属（v1.1 W3）：发送时快照，历史消息缺字段不渲染归属行 */
+  projectId?: string | null
+  projectName?: string | null
+  catalogName?: string | null
+  /** 语音（v1.2 W5）：voiceId = /api/im/voice/:uuid 的 uuid */
+  voiceId?: string | null
+  duration?: number | null
 }
 
 export interface MessageSender {
@@ -104,6 +112,8 @@ export function previewText(type: string, content: string): string {
       return '[图片]'
     case 'FILE':
       return '[文件]'
+    case 'VOICE':
+      return '[语音]'
     case 'SYSTEM':
       return content || '[系统消息]'
     case 'TASK_CARD': {

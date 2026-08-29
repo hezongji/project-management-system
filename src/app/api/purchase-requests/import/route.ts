@@ -114,7 +114,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
             brand: r.brand ?? null,
             quantity: r.quantity,
             unit: r.unit,
-            targetPrice: r.price ?? null,
+            // ★ 2026-08-25：期望价（targetPrice）已全链路下线，不再落库；price 入参保留兼容但忽略
             remark: r.remark ?? null,
           })),
         },
@@ -151,7 +151,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
     }
 
     // 3. 每品牌组 → 1 张 SupplierRequest（PUBLISHED 待采购处理），不生成订单
-    const srResults: Array<{ code: string; brand: string; itemCount: number; supplierName: string | null; title: string | null }> = []
+    const srResults: Array<{ id: string; code: string; brand: string; itemCount: number; supplierName: string | null; title: string | null }> = []
     for (const [brand, rowsInGroup] of Array.from(groups.entries())) {
       const srPrefix = `SR-${project.code}-`
       const lastSr = await tx.supplierRequest.findFirst({
@@ -220,9 +220,10 @@ export const POST = apiHandler(async (request: NextRequest) => {
             })),
           },
         },
-        select: { code: true, title: true, _count: { select: { items: true } }, supplier: { select: { name: true } } },
+        select: { id: true, code: true, title: true, _count: { select: { items: true } }, supplier: { select: { name: true } } },
       })
       srResults.push({
+        id: sr.id,
         code: sr.code,
         brand,
         itemCount: sr._count.items,

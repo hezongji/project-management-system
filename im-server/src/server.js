@@ -33,6 +33,7 @@ function createIo(httpServer, { store, config, log = console }) {
     const token = extractToken(socket.handshake);
     const user = verifyToken(token);
     if (!user) {
+      log.warn(`[auth] 拒绝连接: token=${token ? '验签失败:' + token.slice(0, 25) + '... handshake.auth键:' + Object.keys(socket.handshake.auth || {}) + ' query键:' + Object.keys(socket.handshake.query || {}) : '未提供'}`);
       return next(new Error('unauthorized'));
     }
     socket.data.user = user;
@@ -45,7 +46,6 @@ function createIo(httpServer, { store, config, log = console }) {
     const user = socket.data.user;
     log.info(`[io] 连接: ${user.userId} (${socket.id})`);
     // ★ SDLC F-007 修复: handler 注册前置, 消除 connection 回调异步链期间的事件丢失窗口
-    //   (XWEB/Chrome 断线重连后立即 emit 的消息曾落入未注册窗口被静默丢弃)
     registerMessageHandlers(ctx, socket);
     registerTypingHandler(ctx, socket);
     registerReadHandler(ctx, socket);
@@ -69,7 +69,7 @@ function createIo(httpServer, { store, config, log = console }) {
     // 4) 应用层心跳（引擎层之外再提供 ping/pong）
     socket.on(HEARTBEAT.PING, () => socket.emit(HEARTBEAT.PONG, { ts: Date.now() }));
 
-    // 5) 业务事件（注册已前置至连接回调开头，见 F-007 修复注释）
+    // 5) 业务事件
 
     socket.on('disconnect', async () => {
       const becameOffline = presence.removeOnline(user.userId, socket.id);

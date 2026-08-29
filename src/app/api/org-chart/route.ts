@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic'
 export const GET = apiHandler(async (request: NextRequest) => {
   requireAuth(request)
 
-  const [tree, externals, userTotal] = await Promise.all([
+  const [tree, externals, userTotal, unassigned] = await Promise.all([
     loadDeptTree(),
     prisma.externalOrg.findMany({
       orderBy: [{ name: 'asc' }],
@@ -30,6 +30,20 @@ export const GET = apiHandler(async (request: NextRequest) => {
       },
     }),
     prisma.user.count({ where: { isActive: true } }),
+    // v1.2：无部门在职人员（通讯录「未分组」分组，避免人员"在外面"）
+    prisma.user.findMany({
+      where: { isActive: true, departmentId: null },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        avatar: true,
+        jobTitle: true,
+        phone: true,
+        role: true,
+      },
+    }),
   ])
 
   const externalsByType: Record<string, Array<{ id: string; name: string; isActive: boolean; contactCount: number }>> = {}
@@ -48,11 +62,13 @@ export const GET = apiHandler(async (request: NextRequest) => {
 
   return ok({
     departments: tree,
+    unassigned,
     externals: externalsByType,
     stats: {
       userTotal,
       deptTotal: countDepts(tree),
       externalTotal: externals.length,
+      unassignedTotal: unassigned.length,
     },
   })
 })

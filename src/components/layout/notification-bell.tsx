@@ -151,7 +151,8 @@ export function NotificationBell() {
       const target = item.link.includes('src=')
         ? item.link
         : `${item.link}${item.link.includes('?') ? '&' : '?'}src=${encodeURIComponent('通知')}`
-      router.push(target)
+      // 同源兜底：非站内路径一律回落首页，避免注入外部 URL（参照 lib/notify.ts 写法）
+      router.push(target.startsWith('/') ? target : '/')
     }
   }
 

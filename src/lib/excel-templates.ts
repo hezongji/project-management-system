@@ -116,11 +116,20 @@ export async function downloadOrgsTemplate() {
   )
 }
 
-/** 下载采购清单导入模板（2026-08-22：上传→自动分解） */
+/** 下载采购清单导入模板（★ 2026-08-25 字段统一：标准 8 列，与 AI 工作台/订单表单一致） */
 export async function downloadPurchaseTemplate() {
   await writeWorkbook(
-    [{ name: '采购清单', header: PURCHASE_TEMPLATE_HEADERS, rows: PURCHASE_SAMPLE }],
-    'purchase-import.xlsx'
+    [
+      {
+        name: '采购清单',
+        header: ['品名', '型号', '参数', '单位', '数量', '品牌', '单价', '备注'],
+        rows: [
+          ['不锈钢球阀', 'DN50', 'PN16', '个', 5, '盾安', 88.5, '首批到货'],
+          ['三相异步电机', 'Y2-132M-4', '380V 7.5kW IP55', '台', 2, '西门子', 3200, ''],
+        ],
+      },
+    ],
+    '采购清单导入模板.xlsx'
   )
 }
 
@@ -177,6 +186,125 @@ export async function exportOrgs(
       },
     ],
     `外部主体-${new Date().toISOString().slice(0, 10)}.xlsx`
+  )
+}
+
+/** 导出采购订单列表（2026-08-25：采购模块导出，浏览器端 xlsx） */
+export async function exportPurchaseOrders(
+  orders: Array<{
+    code: string
+    title: string
+    projectCode: string
+    projectName: string
+    categoryLabel: string
+    supplierName: string | null
+    statusLabel: string
+    amount: number | null
+    itemCount: number
+    arrivalCount: number
+    plannedArrivalDate: string | null
+    createdAt: string
+    ownerName: string | null
+    isSupplementary: boolean
+  }>
+) {
+  await writeWorkbook(
+    [
+      {
+        name: '采购订单',
+        header: [
+          '订单编号',
+          '标题',
+          '项目编号',
+          '项目名称',
+          '类别',
+          '供应商',
+          '状态',
+          '金额(元)',
+          '明细行数',
+          '到货批次',
+          '计划到货',
+          '创建日期',
+          '负责人',
+          '追加',
+        ],
+        rows: orders.map((o) => [
+          o.code,
+          o.title,
+          o.projectCode,
+          o.projectName,
+          o.categoryLabel,
+          o.supplierName ?? '',
+          o.statusLabel,
+          o.amount ?? '',
+          o.itemCount,
+          o.arrivalCount,
+          o.plannedArrivalDate ?? '',
+          o.createdAt,
+          o.ownerName ?? '',
+          o.isSupplementary ? '是' : '',
+        ]),
+      },
+    ],
+    `采购订单-${new Date().toISOString().slice(0, 10)}.xlsx`
+  )
+}
+
+/** 导出采购清单列表（2026-08-25：采购模块导出） */
+export async function exportPurchaseRequests(
+  reqs: Array<{
+    code: string
+    title: string
+    projectCode: string
+    projectName: string
+    statusLabel: string
+    priorityLabel: string
+    itemCount: number
+    srCount: number
+    expectedArrivalDate: string | null
+    requesterName: string | null
+    createdAt: string
+    handlerName: string | null
+    rejectReason: string | null
+  }>
+) {
+  await writeWorkbook(
+    [
+      {
+        name: '采购清单',
+        header: [
+          '清单编号',
+          '标题',
+          '项目编号',
+          '项目名称',
+          '状态',
+          '紧急度',
+          '物料行数',
+          '分解任务数',
+          '期望到货',
+          '提出人',
+          '提交日期',
+          '经办人',
+          '驳回原因',
+        ],
+        rows: reqs.map((r) => [
+          r.code,
+          r.title,
+          r.projectCode,
+          r.projectName,
+          r.statusLabel,
+          r.priorityLabel,
+          r.itemCount,
+          r.srCount,
+          r.expectedArrivalDate ?? '',
+          r.requesterName ?? '',
+          r.createdAt,
+          r.handlerName ?? '',
+          r.rejectReason ?? '',
+        ]),
+      },
+    ],
+    `采购清单-${new Date().toISOString().slice(0, 10)}.xlsx`
   )
 }
 
@@ -240,4 +368,112 @@ export async function exportRequirements(
     ],
     `文件条目-${new Date().toISOString().slice(0, 10)}.xlsx`
   )
+}
+
+/**
+ * ★ 2026-08-25 导出「项目采购总清单」（三大类合并汇总，多批次同类项已累加）
+ * 单 sheet 分区：机械 → 小计 → 电气 → 小计 → 其他 → 小计 → 总计；另附批次汇总 sheet。
+ * 无采购财务权限时 amount/avgUnitPrice 为 null → 导出留空。
+ */
+export async function exportConsolidatedPurchase(
+  data: {
+    project: { code: string; name: string }
+    orderCount: number
+    includeDraft: boolean
+    categories: Array<{
+      label: string
+      orderCount: number
+      itemCount: number
+      totalQty: number
+      totalAmount: number | null
+      items: Array<{
+        name: string
+        spec: string | null
+        param: string | null
+        brand: string | null
+        unit: string
+        totalQty: number
+        avgUnitPrice: number | null
+        totalAmount: number | null
+        batchCount: number
+        orderCodes: string[]
+        lastPurchasedAt: string | null
+      }>
+    }>
+    summary: { totalAmount: number | null; totalItems: number }
+  },
+  generatedAtLabel: string
+) {
+  const XLSX = await import('xlsx')
+  const wb = XLSX.utils.book_new()
+
+  // ── Sheet1：三大类总清单（分区 + 小计）──
+  const header = [
+    '序号', '名称', '型号', '参数', '品牌', '单位', '累计数量', '均价(元)', '累计金额(元)', '采购批次', '最近采购', '涉及订单',
+  ]
+  const rows: (string | number)[][] = []
+  let grandAmount = 0
+  let hasAmount = false
+  for (const cat of data.categories) {
+    rows.push([`【${cat.label}类】（${cat.orderCount} 张订单 · ${cat.itemCount} 种物料）`, '', '', '', '', '', '', '', '', '', '', ''])
+    cat.items.forEach((it, i) => {
+      rows.push([
+        i + 1,
+        it.name,
+        it.spec ?? '',
+        it.param ?? '',
+        it.brand ?? '',
+        it.unit,
+        it.totalQty,
+        it.avgUnitPrice ?? '',
+        it.totalAmount ?? '',
+        it.batchCount,
+        it.lastPurchasedAt ? it.lastPurchasedAt.slice(0, 10) : '',
+        it.orderCodes.join('、'),
+      ])
+    })
+    if (cat.totalAmount != null) {
+      hasAmount = true
+      grandAmount += cat.totalAmount
+    }
+    rows.push([
+      `${cat.label}类小计`, '', '', '', '', '',
+      cat.totalQty, '', cat.totalAmount ?? '', '', '', '',
+    ])
+    rows.push(['', '', '', '', '', '', '', '', '', '', '', ''])
+  }
+  rows.push(['总计', '', '', '', '', '', '', '', hasAmount ? Math.round(grandAmount * 100) / 100 : '', '', '', ''])
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows])
+  ws['!cols'] = header.map((h, i) => ({
+    wch: Math.max(h.length * 2.2 + 4, ...rows.map((r) => String(r[i] ?? '').length + 4), 10),
+  }))
+  XLSX.utils.book_append_sheet(wb, ws, '采购总清单')
+
+  // ── Sheet2：批次汇总 ──
+  const sumHeader = ['项目编号', '项目名称', '合并订单数', '物料种数', '总金额(元)', '含草稿', '生成时间']
+  const sumRows: (string | number)[][] = [
+    [
+      data.project.code,
+      data.project.name,
+      data.orderCount,
+      data.summary.totalItems,
+      data.summary.totalAmount ?? '',
+      data.includeDraft ? '是' : '否',
+      generatedAtLabel,
+    ],
+    ...data.categories.map((c) => [
+      `${c.label}类`,
+      '',
+      c.orderCount,
+      c.itemCount,
+      c.totalAmount ?? '',
+      '',
+      '',
+    ]),
+  ]
+  const ws2 = XLSX.utils.aoa_to_sheet([sumHeader, ...sumRows])
+  ws2['!cols'] = sumHeader.map((h) => ({ wch: h.length * 2.2 + 6 }))
+  XLSX.utils.book_append_sheet(wb, ws2, '汇总')
+
+  XLSX.writeFile(wb, `采购总清单-${data.project.code}-${new Date().toISOString().slice(0, 10)}.xlsx`)
 }

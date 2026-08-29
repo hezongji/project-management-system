@@ -83,14 +83,15 @@ function DashboardPageInner() {
   }
 
   // 我的催办（2026-08-22）：别人催办我的 + 我催办别人的
+  // QA批次B4：类型补 projectId/requirementId（行点击跳 /files 定位具体事务）
   const { data: myUrges } = useQuery({
     queryKey: ['my-urges'],
     queryFn: () =>
       ApiService.get<{
-        incoming: Array<{ id: string; projectCode: string; requirementName: string; urgedBy: { name: string }; createdAt: string }>
+        incoming: Array<{ id: string; projectId: string; projectCode: string; requirementId: string; requirementName: string; urgedBy: { name: string }; createdAt: string }>
         incomingCount: number
         incomingDoneCount: number
-        outgoing: Array<{ id: string; projectCode: string; requirementName: string; targetUser: { name: string }; createdAt: string }>
+        outgoing: Array<{ id: string; projectId: string; projectCode: string; requirementId: string; requirementName: string; targetUser: { name: string }; createdAt: string }>
         outgoingCount: number
         outgoingDoneCount: number
         recentlyDone: Array<{ id: string; projectCode: string; requirementName: string; urgedBy: { name: string }; doneAt: string }>
@@ -134,6 +135,13 @@ function DashboardPageInner() {
         toast({ variant: 'destructive', description: '删除失败，请重试' })
       }
     }, { confirmText: '撤回催办', destructive: true })
+  }
+
+  /** 催办行跳转（QA批次B4 P1）：进入对应项目的交付事务，files 页按 requirementId 定位高亮 */
+  const goUrgeFile = (projectId: string, requirementId: string) => {
+    router.push(
+      `/files?projectId=${projectId}&requirementId=${requirementId}&src=${encodeURIComponent('催办')}`,
+    )
   }
 
   useEffect(() => {
@@ -270,14 +278,21 @@ function DashboardPageInner() {
                   <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-red-600 dark:text-red-400">
                     <BellRing className="h-3.5 w-3.5" /> 催办我的（{myUrges?.data?.incoming.length}）
                   </p>
-                  <ul className="space-y-1.5">
+                  <ul className="space-y-1">
                     {(myUrges?.data?.incoming ?? []).map((u) => (
-                      <li key={u.id} className="flex items-center gap-2 text-xs">
-                        <span className="font-mono text-primary">{u.projectCode}</span>
-                        <span className="truncate text-foreground">{u.requirementName}</span>
-                        <span className="ml-auto shrink-0 text-muted-foreground">
-                          {u.urgedBy?.name ?? '?'} 催办
-                        </span>
+                      <li key={u.id}>
+                        <button
+                          type="button"
+                          title="进入具体事务"
+                          onClick={() => goUrgeFile(u.projectId, u.requirementId)}
+                          className="flex w-full items-center gap-2 rounded px-1.5 py-0.5 -mx-1.5 text-left text-xs transition-colors hover:bg-red-100/70 dark:hover:bg-red-950/40"
+                        >
+                          <span className="font-mono text-primary">{u.projectCode}</span>
+                          <span className="truncate text-foreground">{u.requirementName}</span>
+                          <span className="ml-auto shrink-0 text-muted-foreground">
+                            {u.urgedBy?.name ?? '?'} 催办
+                          </span>
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -289,19 +304,29 @@ function DashboardPageInner() {
                   <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                     <Send className="h-3.5 w-3.5" /> 我催办的（{myUrges?.data?.outgoing.length}）
                   </p>
-                  <ul className="space-y-1.5">
+                  <ul className="space-y-1">
                     {(myUrges?.data?.outgoing ?? []).map((u) => (
                       <li key={u.id} className="group/urge flex items-center gap-2 text-xs">
-                        <span className="font-mono text-primary">{u.projectCode}</span>
-                        <span className="truncate text-foreground">{u.requirementName}</span>
-                        <span className="ml-auto shrink-0 text-muted-foreground">
-                          催 {u.targetUser?.name ?? '?'}
-                        </span>
+                        <button
+                          type="button"
+                          title="进入具体事务"
+                          onClick={() => goUrgeFile(u.projectId, u.requirementId)}
+                          className="flex min-w-0 flex-1 items-center gap-2 rounded px-1.5 py-0.5 -mx-1.5 text-left transition-colors hover:bg-muted/70"
+                        >
+                          <span className="font-mono text-primary">{u.projectCode}</span>
+                          <span className="truncate text-foreground">{u.requirementName}</span>
+                          <span className="ml-auto shrink-0 text-muted-foreground">
+                            催 {u.targetUser?.name ?? '?'}
+                          </span>
+                        </button>
                         {/* 撤回催办（删除工程第5棒）：仅发起人，hover 显示 */}
                         <button
                           type="button"
                           title="撤回该催办"
-                          onClick={() => handleDeleteUrge(u.id, u.requirementName)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteUrge(u.id, u.requirementName)
+                          }}
                           className="shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive focus:opacity-100 group-hover/urge:opacity-100"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -355,14 +380,14 @@ function DashboardPageInner() {
                   <button
                     type="button"
                     disabled={!t.link}
-                    onClick={() =>
-                      t.link &&
-                      router.push(
-                        t.link.includes('src=')
-                          ? t.link
-                          : `${t.link}${t.link.includes('?') ? '&' : '?'}src=${encodeURIComponent('待办')}`,
-                      )
-                    }
+                    onClick={() => {
+                      if (!t.link) return
+                      const target = t.link.includes('src=')
+                        ? t.link
+                        : `${t.link}${t.link.includes('?') ? '&' : '?'}src=${encodeURIComponent('待办')}`
+                      // 同源兜底：非站内路径一律回落首页（参照 lib/notify.ts 写法）
+                      router.push(target.startsWith('/') ? target : '/')
+                    }}
                     className={cn(
                       'min-w-0 flex-1 truncate text-left text-sm',
                       t.link && 'text-foreground hover:text-primary hover:underline',

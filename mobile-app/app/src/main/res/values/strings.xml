@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PM 聊天</string>
+    <string name="retry">重试</string>
+    <string name="exit_hint">再按一次退出</string>
+    <string name="load_error_title">网络连接失败</string>
+    <string name="load_error_hint">请检查网络后重试</string>
+</resources>

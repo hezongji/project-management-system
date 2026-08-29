@@ -47,6 +47,7 @@ const createSchema = z.object({
   requestId: z.string().optional().nullable(), // 来源采购清单（可选=独立发起）
   title: z.string().trim().optional().nullable(),
   category: z.enum(['MECHANICAL', 'ELECTRICAL', 'OTHER']).optional(),
+  brand: z.string().trim().optional().nullable(), // ★ 2026-08-25 品牌汇总维度（与 ai-import 对齐；归单聚合依赖）
   expectedDate: z.string().datetime().optional().nullable(),
   remark: z.string().trim().optional().nullable(),
   publish: z.boolean().optional(), // true=直接发布 PUBLISHED，否则 DRAFT
@@ -77,6 +78,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const status = searchParams.get('status')
   const projectId = searchParams.get('projectId')
   const supplierId = searchParams.get('supplierId')
+  const category = searchParams.get('category') // ★ 页面筛选接线补参：类别维度（模型有 category 字段）
 
   // ★ Step3：可见性统一走 visibleSupplierRequestScope（硬性要求 C：ADMIN/采购部全量；
   // 其余=创建人 ∪ 溯源清单发布人 ∪ 被授权，项目成员不再可见）
@@ -86,7 +88,10 @@ export const GET = apiHandler(async (request: NextRequest) => {
     ...visibility,
     ...(status && { status: status as Prisma.EnumSupplierRequestStatusFilter['equals'] }),
     ...(projectId && { projectId }),
-    ...(supplierId && { supplierId }),
+    ...(supplierId && { supplierId }), // = 匹配：supplierId 可空时 NULL 记录不命中，只返回已绑定该供应商的记录
+    ...(category && {
+      category: category as Prisma.EnumPurchaseCategoryFilter['equals'],
+    }),
   }
 
   const [items, total] = await Promise.all([
@@ -161,6 +166,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
         requestId: body.requestId ?? null,
         title: body.title ?? null,
         category: body.category ?? 'OTHER',
+        brand: body.brand ?? null, // ★ 2026-08-25 修复：品牌汇总维度丢失（归单 brands 聚合依赖此字段）
         status: body.publish ? 'PUBLISHED' : 'DRAFT',
         expectedDate: body.expectedDate ? new Date(body.expectedDate) : null,
         creatorId: user.userId,

@@ -202,7 +202,15 @@ export default function ProjectDetailPage() {
       await ApiService.delete(`/file-requirements/${fileReqDeleting.id}`)
       toast({ description: `文件条目「${fileReqDeleting.name}」已删除` })
       setFileReqDeleting(null)
-      queryClient.invalidateQueries({ queryKey: ['project-files', projectId] })
+      // 条目副芘2（同步修复）：删除后同步失效其他持有文件条目数据的缓存，
+      // 避免files 页/工作台仍是已删条目
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['project-files', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['file-requirements'] }),
+        queryClient.invalidateQueries({ queryKey: ['my-deliverables'] }),
+        queryClient.invalidateQueries({ queryKey: ['deliverable-board'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
+      ])
     } catch (e) {
       toast({
         title: '删除失败',

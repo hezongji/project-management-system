@@ -48,7 +48,8 @@ interface SupplierOption {
 
 interface ItemRow {
   name: string
-  spec: string
+  spec: string // 型号
+  param: string // 参数（★ 2026-08-25 字段统一：与 AI 工作台标准列一致）
   brand: string
   quantity: string
   unit: string
@@ -56,7 +57,7 @@ interface ItemRow {
   remark: string
 }
 
-const EMPTY_ROW: ItemRow = { name: '', spec: '', brand: '', quantity: '1', unit: '件', unitPrice: '', remark: '' }
+const EMPTY_ROW: ItemRow = { name: '', spec: '', param: '', brand: '', quantity: '1', unit: '件', unitPrice: '', remark: '' }
 
 const CATEGORY_LABEL: Record<string, string> = {
   MECHANICAL: '机械',
@@ -148,6 +149,7 @@ export function OrderFormDialog({
     param?: string
     quantity?: number
     unit?: string
+    price?: number | null
     remark?: string
   }
 
@@ -168,22 +170,24 @@ export function OrderFormDialog({
         .map((r) => r.map((c) => String(c ?? '').trim()))
         .filter((r) => r.some((c) => c !== '')) // 去全空行
       if (rows.length === 0) throw new Error('表格内容为空')
-      if (rows.length > 200) {
-        rows = rows.slice(0, 200)
-        toast({ description: '表格超过 200 行，已截取前 200 行解析' })
+      if (rows.length > 400) {
+        rows = rows.slice(0, 400)
+        toast({ description: '表格超过 400 行，已截取前 400 行解析' })
       }
       const res = await ApiService.post<{
         items: DecomposeExcelItem[]
         uncertain: Array<{ row: number; reason: string }>
+        warnings?: string[]
       }>(
         '/ai/decompose-purchase',
         { mode: 'excel', rows },
-        { timeout: 120_000 },
+        { timeout: 290_000 },
       )
       const got = res.data?.items ?? []
       const uncertain = res.data?.uncertain ?? []
+      const parseWarnings = res.data?.warnings ?? []
       if (got.length === 0) {
-        toast({ variant: 'destructive', description: 'AI 未能从表格中识别出物料，请检查列内容或改用手填' })
+        toast({ variant: 'destructive', description: res.message || 'AI 未能从表格中识别出物料，请检查列内容或改用手填' })
         return
       }
       setItems((prev) => {
@@ -192,12 +196,13 @@ export function OrderFormDialog({
           ...base,
           ...got.map((g) => ({
             name: g.name,
-            // DB 无 param 列（v3 设计）：参数并入规格型号列保留信息
-            spec: [g.spec, g.param].filter(Boolean).join('；'),
+            // ★ 字段统一：型号/参数分列（与 AI 工作台、采购清单一致）
+            spec: g.spec ?? '',
+            param: g.param ?? '',
             brand: g.brand ?? '',
             quantity: String(g.quantity ?? 1),
             unit: g.unit || '件',
-            unitPrice: '',
+            unitPrice: g.price != null ? String(g.price) : '',
             remark: g.remark ?? '',
           })),
         ]
@@ -230,23 +235,31 @@ export function OrderFormDialog({
           description: `另有 ${uncertain.length} 行未能识别（如合计/空行），已跳过`,
         })
       }
+      if (parseWarnings.length > 0) {
+        toast({
+          description: `${parseWarnings.length} 个分段解析失败：${parseWarnings.slice(0, 2).join('；')}。请核对下方明细有无缺漏`,
+        })
+      }
     } catch (e) {
-      toast({ variant: 'destructive', description: e instanceof Error ? e.message : 'Excel 导入失败' })
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (e as Error).message
+      toast({ variant: 'destructive', description: msg || 'Excel 导入失败' })
     } finally {
       setExcelBusy(false)
       if (excelInputRef.current) excelInputRef.current.value = ''
     }
   }
 
-  /** 动态生成导入模板 xlsx（前端生成，零后端依赖） */
+  /** 动态生成导入模板 xlsx（前端生成，零后端依赖；★ 与标准字段一致含单价） */
   const downloadTemplate = () => {
     const aoa = [
-      ['品名', '品牌', '供应商', '规格型号', '参数', '数量', '单位', '备注'],
-      ['不锈钢球阀', '盾安', '上海盾安阀门', 'DN50', 'PN16', '5', '个', '首批到货'],
-      ['三相异步电机', '西门子', '', 'Y2-132M-4', '380V 7.5kW IP55', '2', '台', ''],
+      ['品名', '型号', '参数', '单位', '数量', '品牌', '单价', '备注'],
+      ['不锈钢球阀', 'DN50', 'PN16', '个', '5', '盾安', '88.5', '首批到货'],
+      ['三相异步电机', 'Y2-132M-4', '380V 7.5kW IP55', '台', '2', '西门子', '3200', ''],
     ]
     const ws = XLSX.utils.aoa_to_sheet(aoa)
-    ws['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 18 }, { wch: 14 }, { wch: 16 }, { wch: 6 }, { wch: 6 }, { wch: 12 }]
+    ws['!cols'] = [{ wch: 16 }, { wch: 12 }, { wch: 18 }, { wch: 6 }, { wch: 6 }, { wch: 10 }, { wch: 8 }, { wch: 12 }]
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '采购清单')
     XLSX.writeFile(wb, '采购清单导入模板.xlsx')
@@ -274,6 +287,7 @@ export function OrderFormDialog({
           ...got.map((g) => ({
             name: g.name,
             spec: g.spec ?? '',
+            param: '',
             brand: '',
             quantity: String(g.quantity ?? 1),
             unit: g.unit || '件',
@@ -327,6 +341,7 @@ export function OrderFormDialog({
             ? o.items.map((it) => ({
                 name: it.name,
                 spec: it.spec ?? '',
+                param: (it as { param?: string | null }).param ?? '',
                 brand: it.brand ?? '',
                 quantity: String(it.quantity),
                 unit: it.unit,
@@ -409,6 +424,7 @@ export function OrderFormDialog({
           items: items.map((r) => ({
             name: r.name.trim(),
             spec: r.spec.trim() || null,
+            param: r.param.trim() || null,
             brand: r.brand.trim() || null,
             quantity: Number(r.quantity),
             unit: r.unit.trim() || '件',
@@ -426,6 +442,7 @@ export function OrderFormDialog({
         items: items.map((r) => ({
           name: r.name.trim(),
           spec: r.spec.trim() || null,
+          param: r.param.trim() || null,
           brand: r.brand.trim() || null,
           quantity: Number(r.quantity),
           unit: r.unit.trim() || '件',
@@ -635,20 +652,23 @@ export function OrderFormDialog({
               <table className="w-full text-xs">
                 <thead className="bg-muted/50 text-left text-muted-foreground">
                   <tr>
-                    <th className="px-2 py-1.5 font-medium">物料名称 *</th>
-                    <th className="px-2 py-1.5 font-medium">规格型号</th>
-                    <th className="px-2 py-1.5 font-medium">品牌</th>
-                    <th className="w-20 px-2 py-1.5 font-medium">数量 *</th>
+                    <th className="w-10 px-2 py-1.5 font-medium">序号</th>
+                    <th className="px-2 py-1.5 font-medium">名称 *</th>
+                    <th className="px-2 py-1.5 font-medium">型号</th>
+                    <th className="px-2 py-1.5 font-medium">参数</th>
                     <th className="w-16 px-2 py-1.5 font-medium">单位</th>
+                    <th className="w-16 px-2 py-1.5 font-medium">数量 *</th>
+                    <th className="px-2 py-1.5 font-medium">品牌</th>
                     <th className="w-24 px-2 py-1.5 font-medium">单价(元)</th>
-                    <th className="w-28 px-2 py-1.5 font-medium">备注</th>
-                    <th className="w-10 px-2 py-1.5" />
+                    <th className="px-2 py-1.5 font-medium">备注</th>
+                    <th className="w-8 px-2 py-1.5" />
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((row, idx) => (
                     <tr key={idx} className="border-t">
-                      <td className="px-1.5 py-1">
+                      <td className="px-2 py-1 text-center text-muted-foreground">{idx + 1}</td>
+                      <td className="px-1 py-1">
                         <Input
                           className="h-7 text-xs"
                           value={row.name}
@@ -656,22 +676,30 @@ export function OrderFormDialog({
                           placeholder="如 不锈钢球阀"
                         />
                       </td>
-                      <td className="px-1.5 py-1">
+                      <td className="px-1 py-1">
                         <Input
                           className="h-7 text-xs"
                           value={row.spec}
                           onChange={(e) => setRow(idx, { spec: e.target.value })}
-                          placeholder="DN50/PN16"
+                          placeholder="DN50"
                         />
                       </td>
-                      <td className="px-1.5 py-1">
+                      <td className="px-1 py-1">
                         <Input
                           className="h-7 text-xs"
-                          value={row.brand}
-                          onChange={(e) => setRow(idx, { brand: e.target.value })}
+                          value={row.param}
+                          onChange={(e) => setRow(idx, { param: e.target.value })}
+                          placeholder="PN16"
                         />
                       </td>
-                      <td className="px-1.5 py-1">
+                      <td className="px-1 py-1">
+                        <Input
+                          className="h-7 text-xs"
+                          value={row.unit}
+                          onChange={(e) => setRow(idx, { unit: e.target.value })}
+                        />
+                      </td>
+                      <td className="px-1 py-1">
                         <Input
                           className="h-7 text-xs"
                           type="number"
@@ -681,14 +709,14 @@ export function OrderFormDialog({
                           onChange={(e) => setRow(idx, { quantity: e.target.value })}
                         />
                       </td>
-                      <td className="px-1.5 py-1">
+                      <td className="px-1 py-1">
                         <Input
                           className="h-7 text-xs"
-                          value={row.unit}
-                          onChange={(e) => setRow(idx, { unit: e.target.value })}
+                          value={row.brand}
+                          onChange={(e) => setRow(idx, { brand: e.target.value })}
                         />
                       </td>
-                      <td className="px-1.5 py-1">
+                      <td className="px-1 py-1">
                         <Input
                           className="h-7 text-xs"
                           type="number"
@@ -698,14 +726,14 @@ export function OrderFormDialog({
                           onChange={(e) => setRow(idx, { unitPrice: e.target.value })}
                         />
                       </td>
-                      <td className="px-1.5 py-1">
+                      <td className="px-1 py-1">
                         <Input
                           className="h-7 text-xs"
                           value={row.remark}
                           onChange={(e) => setRow(idx, { remark: e.target.value })}
                         />
                       </td>
-                      <td className="px-1.5 py-1 text-center">
+                      <td className="px-1 py-1 text-center">
                         <Button
                           type="button"
                           size="sm"

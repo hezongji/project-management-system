@@ -18,9 +18,11 @@ export const metadata: Metadata = {
 }
 
 // Next 14+：viewport/themeColor 从 metadata 拆分到独立 Viewport 导出
+// W2：viewportFit:'cover' 使 env(safe-area-inset-*) 生效（移动端手势条安全区适配）
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: 'white' },
     { media: '(prefers-color-scheme: dark)', color: 'black' },

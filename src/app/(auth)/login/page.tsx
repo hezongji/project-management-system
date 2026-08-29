@@ -89,7 +89,13 @@ export default function LoginPage() {
           /* 忽略全屏失败，不影响登录 */
         }
         
-        router.push('/')
+        // 登录后回跳：?next= 参数（W1-I3，防开放重定向仅允许站内路径）；否则进工作台
+        let target = '/'
+        if (typeof window !== 'undefined') {
+          const next = new URLSearchParams(window.location.search).get('next')
+          if (next && next.startsWith('/') && !next.startsWith('//')) target = next
+        }
+        router.push(target)
       } else {
         toast({
           title: '登录失败',
@@ -115,11 +121,11 @@ export default function LoginPage() {
           {/* 公司 Logo */}
           <img
             src="/logo.png"
-            alt="示例智能装备有限公司"
+            alt="华澄智能装备有限公司"
             className="mx-auto h-20 w-20 object-contain"
           />
           <h2 className="mt-3 text-2xl font-extrabold text-gray-900 dark:text-white">
-            示例智能装备有限公司
+            华澄智能装备有限公司
           </h2>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             项目管理系统
