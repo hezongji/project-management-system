@@ -1,0 +1,50 @@
+# =========================================================================
+# Dockerfile.im — IM 服务（Socket.IO 独立进程, :3002）
+# 独立镜像：以项目根为 build context，context 内复制 im-server/ 单独构建
+# 依赖：socket.io / prisma / @prisma/client
+# 注意：im-server/ 目录需与主服务共享 prisma schema（见 deploy/README.md）
+# =========================================================================
+
+FROM node:20-alpine AS deps
+WORKDIR /app
+RUN apk add --no-cache libc6-compat python3 make g++ git
+
+# im-server 独立 package.json
+COPY im-server/package.json ./
+# 若使用根锁文件，可取消下行并改为 COPY package-lock.json ./
+# COPY im-server/package-lock.json ./
+RUN npm install
+
+FROM node:20-alpine AS build
+WORKDIR /app
+RUN apk add --no-cache libc6-compat python3 make g++ git
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY im-server/ ./
+
+# 生成 Prisma Client（使用与主服务一致的 schema，只读+Message 写入）
+COPY prisma ./prisma
+ENV PRISMA_SCHEMA_PATH=./prisma/schema.prisma
+RUN npx prisma generate --schema ./prisma/schema.prisma
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV IM_PORT=3002
+
+RUN apk add --no-cache dumb-init curl
+
+RUN addgroup -g 1001 -S nodejs \
+  && adduser -S im -u 1001
+
+COPY --from=build --chown=im:nodejs /app/ ./
+
+USER im
+
+EXPOSE 3002
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3002/health || exit 1
+
+CMD ["dumb-init", "node", "index.js"]

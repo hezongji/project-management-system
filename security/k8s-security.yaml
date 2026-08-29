@@ -1,0 +1,172 @@
+# Kubernetes安全策略配置
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: project-management-psp
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+  readOnlyRootFilesystem: true
+---
+# 网络策略
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: app-network-policy
+  namespace: project-management
+spec:
+  podSelector:
+    matchLabels:
+      app: project-management-app
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: project-management
+    - podSelector:
+        matchLabels:
+          app: nginx-ingress
+    ports:
+    - protocol: TCP
+      port: 3000
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: project-management
+    ports:
+    - protocol: TCP
+      port: 5432  # PostgreSQL
+    - protocol: TCP
+      port: 6379  # Redis
+    - protocol: TCP
+      port: 25    # SMTP
+    - protocol: TCP
+      port: 443   # HTTPS
+---
+# RBAC配置
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: project-management-sa
+  namespace: project-management
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: project-management-role
+  namespace: project-management
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: project-management-rolebinding
+  namespace: project-management
+subjects:
+- kind: ServiceAccount
+  name: project-management-sa
+  namespace: project-management
+roleRef:
+  kind: Role
+  name: project-management-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# 资源限制
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: project-management-limits
+  namespace: project-management
+spec:
+  limits:
+  - default:
+      memory: "512Mi"
+      cpu: "500m"
+    defaultRequest:
+      memory: "256Mi"
+      cpu: "250m"
+    type: Container
+---
+# 资源配额
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: project-management-quota
+  namespace: project-management
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: "8Gi"
+    limits.cpu: "8"
+    limits.memory: "16Gi"
+    persistentvolumeclaims: "10"
+    requests.storage: "100Gi"
+---
+# 密钥管理策略
+apiVersion: v1
+kind: Secret
+metadata:
+  name: security-policies
+  namespace: project-management
+type: Opaque
+data:
+  # 安全策略配置
+  password_policy: "bWluaW11bV8xMixzcGVjaGlhbF8hQCM="  # minimum_12,special_!@#
+  session_timeout: "MzYwMA=="  # 3600
+  max_login_attempts: "NQ=="  # 5
+  lockout_duration: "MTgwMA=="  # 1800
+---
+# API安全配置
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-security-config
+  namespace: project-management
+data:
+  # CORS配置
+  cors_allowed_origins: "https://project-management.com,https://www.project-management.com"
+  cors_allowed_methods: "GET,POST,PUT,DELETE,OPTIONS"
+  cors_allowed_headers: "Content-Type,Authorization,X-Requested-With"
+  
+  # 速率限制
+  rate_limit_requests: "100"
+  rate_limit_window: "60"
+  
+  # JWT配置
+  jwt_expiration: "86400"
+  jwt_refresh_expiration: "604800"
+  
+  # 安全头
+  security_headers: |
+    {
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
+      "X-XSS-Protection": "1; mode=block",
+      "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' wss: https:;"
+    }

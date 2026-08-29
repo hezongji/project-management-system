@@ -1,0 +1,66 @@
+# 多阶段构建优化Dockerfile
+FROM node:18-alpine AS base
+
+# 安装构建依赖
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    git
+
+WORKDIR /app
+
+# 复制依赖文件
+COPY package*.json ./
+COPY prisma ./prisma/
+
+# 安装所有依赖
+RUN npm ci
+
+# 构建阶段
+FROM base AS builder
+
+# 复制源代码
+COPY . .
+
+# 生成Prisma客户端
+RUN npx prisma generate
+
+# 构建应用
+RUN npm run build
+
+# 生产阶段
+FROM node:18-alpine AS production
+
+# 安装运行时依赖
+RUN apk add --no-cache \
+    dumb-init \
+    curl
+
+WORKDIR /app
+
+# 创建非root用户
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# 复制构建产物
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+
+# 创建必要的目录
+RUN mkdir -p uploads && chown nextjs:nodejs uploads
+
+# 切换到非root用户
+USER nextjs
+
+# 暴露端口
+EXPOSE 3000
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+# 启动应用
+CMD ["dumb-init", "node", "server.js"]

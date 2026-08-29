@@ -1,0 +1,149 @@
+# Filebeat配置文件
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /app/logs/*.log
+  fields:
+    environment: production
+    application: project-management
+    log_type: application
+  fields_under_root: true
+  json.keys_under_root: true
+  json.add_error_key: true
+
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/access.log
+  fields:
+    environment: production
+    application: project-management
+    log_type: nginx_access
+  fields_under_root: true
+  json.keys_under_root: true
+  json.add_error_key: true
+
+- type: log
+  enabled: true
+  paths:
+    - /var/log/nginx/error.log
+  fields:
+    environment: production
+    application: project-management
+    log_type: nginx_error
+  fields_under_root: true
+  json.keys_under_root: true
+  json.add_error_key: true
+
+- type: log
+  enabled: true
+  paths:
+    - /var/log/containers/*project-management*.log
+  fields:
+    environment: production
+    application: project-management
+    log_type: kubernetes
+  fields_under_root: true
+  json.keys_under_root: true
+  json.add_error_key: true
+
+# 处理器配置
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - add_docker_metadata: ~
+  - add_kubernetes_metadata:
+      host: ${NODE_NAME}
+      matchers:
+        - logs_path:
+            logs_path: "/var/log/containers/"
+  - decode_json_fields:
+      fields: ["message"]
+      target: "json"
+      overwrite_keys: true
+  - timestamp:
+      field: json.timestamp
+      layouts:
+        - '2006-01-02T15:04:05.999Z'
+        - '2006-01-02 15:04:05'
+        - '2006-01-02T15:04:05'
+      test:
+        - '2023-12-01T10:30:45.123Z'
+        - '2023-12-01 10:30:45'
+  - drop_event:
+      when:
+        equals:
+          json.level: "debug"
+  - script:
+      lang: javascript
+      source: >
+        function process(event) {
+          // 处理敏感信息
+          if (event.Get("message")) {
+            var message = event.Get("message");
+            message = message.replace(/password=[^&]*/g, "password=***");
+            message = message.replace(/token=[^&]*/g, "token=***");
+            message = message.replace(/key=[^&]*/g, "key=***");
+            message = message.replace(/secret=[^&]*/g, "secret=***");
+            event.Put("message", message);
+          }
+          
+          // 添加通用字段
+          event.Put("cluster", "production-cluster");
+          event.Put("hostname", os.hostname());
+          
+          // 处理用户代理
+          if (event.Get("userAgent")) {
+            var userAgent = event.Get("userAgent");
+            var agent = require('useragent').parse(userAgent);
+            event.Put("browser", agent.toAgent());
+            event.Put("os", agent.os.toString());
+            event.Put("device", agent.device.toString());
+          }
+          
+          // 处理IP地址
+          if (event.Get("clientIp")) {
+            var clientIp = event.Get("clientIp");
+            var geoip = require('geoip-lite').lookup(clientIp);
+            if (geoip) {
+              event.Put("geoip", geoip);
+            }
+          }
+        }
+
+# 输出到Logstash
+output.logstash:
+  hosts: ["logstash:5044"]
+  ssl.enabled: false
+  index: "project-management-%{+yyyy.MM.dd}"
+
+# 输出到Elasticsearch（备用）
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  index: "project-management-%{+yyyy.MM.dd}"
+  template.name: "project-management"
+  template.pattern: "project-management-*"
+  template.settings:
+    index.number_of_shards: 3
+    index.number_of_replicas: 1
+
+# 输出到控制台（调试用）
+output.console:
+  enabled: false
+  pretty: true
+
+# 日志配置
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+# 监控配置
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]

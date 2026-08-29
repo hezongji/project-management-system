@@ -1,0 +1,167 @@
+{
+  "index_patterns": ["project-management-*"],
+  "settings": {
+    "index": {
+      "number_of_shards": 3,
+      "number_of_replicas": 1,
+      "refresh_interval": "5s",
+      "lifecycle": {
+        "name": "project-management-policy",
+        "rollover_alias": "project-management"
+      }
+    },
+    "analysis": {
+      "analyzer": {
+        "log_analyzer": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "stop",
+            "stemmer"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis"
+      },
+      "message": {
+        "type": "text",
+        "analyzer": "log_analyzer",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "level": {
+        "type": "keyword"
+      },
+      "environment": {
+        "type": "keyword"
+      },
+      "application": {
+        "type": "keyword"
+      },
+      "cluster": {
+        "type": "keyword"
+      },
+      "request_id": {
+        "type": "keyword"
+      },
+      "user_id": {
+        "type": "keyword"
+      },
+      "client_ip": {
+        "type": "ip"
+      },
+      "user_agent": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "keyword"
+          },
+          "os": {
+            "type": "keyword"
+          },
+          "device": {
+            "type": "keyword"
+          }
+        }
+      },
+      "geoip": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "geo_point"
+          },
+          "country_name": {
+            "type": "keyword"
+          },
+          "city_name": {
+            "type": "keyword"
+          }
+        }
+      },
+      "kubernetes": {
+        "type": "object",
+        "properties": {
+          "pod_name": {
+            "type": "keyword"
+          },
+          "namespace_name": {
+            "type": "keyword"
+          },
+          "container_name": {
+            "type": "keyword"
+          },
+          "host": {
+            "type": "keyword"
+          }
+        }
+      },
+      "nginx": {
+        "type": "object",
+        "properties": {
+          "upstream_time": {
+            "type": "float"
+          },
+          "request_time": {
+            "type": "float"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "bytes_sent": {
+            "type": "integer"
+          },
+          "request_method": {
+            "type": "keyword"
+          },
+          "request_uri": {
+            "type": "keyword"
+          }
+        }
+      },
+      "error": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "keyword"
+          },
+          "message": {
+            "type": "text",
+            "analyzer": "log_analyzer"
+          },
+          "stack": {
+            "type": "text",
+            "analyzer": "log_analyzer"
+          }
+        }
+      },
+      "performance": {
+        "type": "object",
+        "properties": {
+          "duration": {
+            "type": "float"
+          },
+          "memory_used": {
+            "type": "integer"
+          },
+          "cpu_usage": {
+            "type": "float"
+          }
+        }
+      },
+      "tags": {
+        "type": "keyword"
+      }
+    }
+  }
+}

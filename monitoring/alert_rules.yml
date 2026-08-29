@@ -1,0 +1,172 @@
+# 告警规则配置
+groups:
+  - name: project-management-alerts
+    rules:
+      # 应用服务告警
+      - alert: ApplicationDown
+        expr: up{job="project-management-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "应用服务不可用"
+          description: "应用服务已停止运行超过1分钟"
+
+      - alert: HighResponseTime
+        expr: http_request_duration_seconds_sum{job="project-management-app"} / http_request_duration_seconds_count{job="project-management-app"} > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "响应时间过高"
+          description: "应用响应时间超过2秒，持续5分钟"
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "错误率过高"
+          description: "应用5xx错误率超过5%，持续5分钟"
+
+      # 数据库告警
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL数据库不可用"
+          description: "PostgreSQL数据库已停止运行超过1分钟"
+
+      - alert: PostgreSQLSlowQueries
+        expr: rate(pg_stat_database_calls_total[5m]) > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL慢查询"
+          description: "PostgreSQL数据库存在慢查询，影响性能"
+
+      - alert: PostgreSQLHighConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL连接数过高"
+          description: "PostgreSQL数据库连接数使用率超过80%"
+
+      # Redis告警
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis服务不可用"
+          description: "Redis服务已停止运行超过1分钟"
+
+      - alert: RedisHighMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis内存使用率过高"
+          description: "Redis内存使用率超过80%"
+
+      - alert: RedisSlowlog
+        expr: redis_slowlog_length > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis慢查询"
+          description: "Redis存在慢查询，影响性能"
+
+      # 系统资源告警
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU使用率过高"
+          description: "节点CPU使用率超过80%，持续5分钟"
+
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "内存使用率过高"
+          description: "节点内存使用率超过80%，持续5分钟"
+
+      - alert: HighDiskUsage
+        expr: (node_filesystem_size_bytes{fstype!="tmpfs"} - node_filesystem_free_bytes{fstype!="tmpfs"}) / node_filesystem_size_bytes{fstype!="tmpfs"} * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "磁盘使用率过高"
+          description: "节点磁盘使用率超过85%，持续5分钟"
+
+      - alert: DiskSpaceLow
+        expr: node_filesystem_free_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"} * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "磁盘空间不足"
+          description: "节点磁盘剩余空间不足10%，持续5分钟"
+
+      # 网络告警
+      - alert: HighNetworkTraffic
+        expr: rate(node_network_receive_bytes_total[5m]) / 1024 / 1024 > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "网络流量过高"
+          description: "节点网络接收流量超过100MB/s，持续5分钟"
+
+      # 容器告警
+      - alert: ContainerOOMKilled
+        expr: kube_pod_container_status_restarts_total > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "容器重启"
+          description: "容器发生重启，可能是内存不足导致"
+
+      - alert: PodCrashLooping
+        expr: rate(kube_pod_container_status_restarts_total[5m]) > 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pod崩溃循环"
+          description: "Pod在15分钟内发生崩溃循环"
+
+      # SSL证书告警
+      - alert: SSLCertificateExpiring
+        expr: probe_ssl_earliest_cert_expiry - time() < 86400 * 7
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SSL证书即将过期"
+          description: "SSL证书将在7天内过期"
+
+      - alert: SSLCertificateExpired
+        expr: probe_ssl_earliest_cert_expiry - time() < 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SSL证书已过期"
+          description: "SSL证书已过期"

@@ -1,0 +1,34 @@
+# Grafana仪表板配置
+apiVersion: 1
+
+providers:
+  - name: 'default'
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+
+dashboards:
+  - name: 'system-overview'
+    folder: 'System Overview'
+    file: 'dashboards/system-overview.json'
+    
+  - name: 'application-metrics'
+    folder: 'Application Metrics'
+    file: 'dashboards/application-metrics.json'
+    
+  - name: 'database-metrics'
+    folder: 'Database Metrics'
+    file: 'dashboards/database-metrics.json'
+    
+  - name: 'redis-metrics'
+    folder: 'Redis Metrics'
+    file: 'dashboards/redis-metrics.json'
+    
+  - name: 'kubernetes-metrics'
+    folder: 'Kubernetes Metrics'
+    file: 'dashboards/kubernetes-metrics.json'

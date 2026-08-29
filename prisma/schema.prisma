@@ -1,0 +1,1117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════ 认证与用户 ═══════════
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  password     String                       // bcrypt
+  name         String
+  phone        String?
+  avatar       String?
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  jobTitle     String?                      // 岗位名（冗余自岗位字典，显示用）
+  duties       String?                      // 职责描述
+  role         GlobalRole @default(MEMBER)   // 全局角色
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // ── 权限 V2（2026-08-21）：管理员统一分配 ──
+  // 页面权限：可见页面 key 数组（null=按角色默认）；如 ["dashboard","projects","files"]
+  pagePermissions   Json?
+  // 额外可见项目：超出项目成员制的授权可见项目 id（管理员分配，仅可见不参与工作流）
+  extraVisibleProjectIds String[] @default([])
+
+  accounts         Account[]
+  sessions         Session[]
+  projectMembers   ProjectMember[]
+  phaseOwners      Phase[]        @relation("PhaseOwner")
+  tasksAssigned    Task[]         @relation("TaskAssignee")
+  tasksCreated     Task[]         @relation("TaskCreator")
+  revisions        TaskRevision[]
+  annotations      Annotation[]
+  filesUploaded    File[]
+  comments         Comment[]
+  requirementOwns  FileRequirement[] @relation("RequirementOwner")
+  requirementRevs  FileRequirement[] @relation("RequirementReviewer")
+  messages         Message[]
+  conversations    ConversationMember[]
+  todos            TodoItem[]
+  notifications    Notification[]
+  accessLogs       FileAccessLog[]
+  urgesSent        UrgeRecord[] @relation("UrgeSender")
+  urgesReceived    UrgeRecord[] @relation("UrgeTarget")
+  // ── 采购管理反向关系（2026-08-22 ★ 新模块）──
+  purchaseRequestsRequested PurchaseRequest[] @relation("PurchaseRequester")
+  purchaseRequestsHandled   PurchaseRequest[] @relation("PurchaseRequestHandler")
+  supplierRequestsCreated   SupplierRequest[] @relation("SupplierRequestCreator")
+  purchaseOrdersOwned       PurchaseOrder[]   @relation("PurchaseOwner")
+  purchaseOrdersCreated     PurchaseOrder[]   @relation("PurchaseCreator")
+  arrivalsCreated           GoodsArrival[]    @relation("ArrivalCreator")
+  // ── ★ V3 新增（2026-08-22 采购金额可见授权 + 新实体反向关系）──
+  purchaseFinanceGranted    Boolean @default(false)    // 管理员勾选：采购金额可见（取代 OWNER/MANAGER 默认）
+  purchaseGrants            PurchaseScopeGrant[] @relation("PurchaseGrantUser")
+  purchaseGrantsGiven       PurchaseScopeGrant[] @relation("PurchaseGrantor")
+  contractConfirmed         PurchaseContract[]  @relation("ContractConfirmer")
+  paymentsCreated           PurchasePayment[]   @relation("PaymentCreator")
+  ordersReceived            PurchaseOrder[]     @relation("OrderReceiver")
+  arrivalsReceived          GoodsArrival[]      @relation("ArrivalReceiver")
+  arrivalsConfirmed         GoodsArrival[]      @relation("ArrivalConfirmer")
+  permissionsGiven ResourcePermission[] @relation("Grantor")
+  activityLogs     ActivityLog[]
+  // ── 项目费用模块反向关系（报销单+明细结构重构 2026-08-24）──
+  expenseClaimsPayee     ExpenseClaim[] @relation("ExpenseClaimPayee")
+  expenseClaimsApproved  ExpenseClaim[] @relation("ExpenseClaimApprover")
+  expenseClaimsPaidBy    ExpenseClaim[] @relation("ExpenseClaimPayer")
+  expenseClaimsCreated   ExpenseClaim[] @relation("ExpenseClaimCreator")
+
+  @@index([departmentId])
+}
+
+// ═══════════ NextAuth.js 兼容表（旧 schema 保留）═══════════
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+enum GlobalRole {
+  ADMIN
+  PROJECT_MANAGER
+  MEMBER
+}
+
+// ═══════════ 组织架构（内+外）═══════════
+
+model Department {
+  id        String  @id @default(cuid())
+  name      String                              // 电气设计部
+  parentId  String?
+  parent    Department?  @relation("DeptTree", fields: [parentId], references: [id])
+  children  Department[] @relation("DeptTree")
+  managerId String?                             // 部门负责人 userId
+  sort      Int     @default(0)
+  members   User[]
+  @@index([parentId])
+}
+
+model JobTitle {                                  // 岗位字典（流程模板绑定用）
+  id        String @id @default(cuid())
+  name      String @unique                        // 商务经理/电气工程师…
+  deptHint  String?                               // 建议归属部门
+  sort      Int    @default(0)
+}
+
+enum ExternalOrgType {
+  CUSTOMER
+  SUPPLIER
+  OUTSOURCER
+  CONTRACTOR
+  OTHER
+}
+model ExternalOrg {                               // 外部主体（不登录，仅档案）
+  id        String          @id @default(cuid())
+  name      String                               // 公司名
+  type      ExternalOrgType
+  phone     String?
+  address   String?
+  remark    String?
+  isActive  Boolean         @default(true)
+  contacts  ExternalContact[]
+  projects  Project[]
+  // 采购模块反向关系（2026-08-22）：供应商维度
+  supplierRequests SupplierRequest[]
+  purchaseOrders   PurchaseOrder[]
+  goodsArrivals    GoodsArrival[]
+  @@index([type])
+}
+
+// ── 权限 V2（2026-08-21）：外部主体按类型细分可见性配置 ──
+// 每种类型（客户/供应商/外协/承包商/其他）单独配置可见范围：
+//   visibility=PUBLIC    → 全员可见该类型
+//   visibility=RESTRICTED → 仅 deptIds（部门）+ userIds（用户）命中者可见
+// 无配置行时回退：SUPPLIER→采购部；其余→成员项目关联（旧规则）
+model ExternalOrgScope {
+  id          String         @id @default(cuid())
+  type        ExternalOrgType @unique
+  visibility  String         @default("RESTRICTED")
+  deptIds     String[]       @default([])
+  userIds     String[]       @default([])
+  updatedById String?
+  updatedAt   DateTime       @updatedAt
+  createdAt   DateTime       @default(now())
+}
+
+model ExternalContact {
+  id       String      @id @default(cuid())
+  orgId    String
+  org      ExternalOrg @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name     String
+  title    String?                                 // 职务
+  phone    String?
+  email    String?
+  remark   String?                                 // 对接事项
+  @@index([orgId])
+}
+
+// ═══════════ 流程模板 ═══════════
+
+model ProcessTemplate {
+  id        String  @id @default(cuid())
+  name      String                             // 标准交付流程20步
+  isDefault Boolean @default(false)
+  stages    TemplateStage[]
+  projects  Project[]
+}
+
+model TemplateStage {
+  id             String  @id @default(cuid())
+  templateId     String
+  template       ProcessTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name           String                            // 商务拜访
+  order          Int
+  ownerJobTitle  String?                           // ★ 负责岗位名（引用 JobTitle.name）
+  deliverables   Json?                             // 交付物数组 [{name, required, purpose, scope}]
+  checklist      Json?                             // 阶段验收检查项 ["..."]
+  @@index([templateId])
+}
+
+// ═══════════ 项目与流程 ═══════════
+
+model Project {
+  id           String   @id @default(cuid())
+  code         String   @unique                  // 项目编号 DEMO25021（演示编号规则：DEMO+年份后两位+3位流水，见 §7.4）
+  contractNo   String?                            // 客户合同编号（SHYYHT*/YYFLDJ*/GCB-* 等，台账原文）
+  location     String?                            // 施工地/项目地点（赵县/河南一期/国外…）
+  signedAt     DateTime?                          // 签约日期
+  name         String
+  description  String?
+  status       ProjectStatus @default(ACTIVE)
+  priority     ProjectPriority @default(MEDIUM)
+  amount       Decimal? @db.Decimal(14,2)        // 合同金额
+  customerId   String?                            // ExternalOrg.id
+  customer     ExternalOrg? @relation(fields: [customerId], references: [id])
+  plannedStart DateTime?
+  plannedEnd   DateTime?
+  actualEnd    DateTime?
+  templateId   String?
+  template     ProcessTemplate? @relation(fields: [templateId], references: [id])
+  isArchived   Boolean  @default(false)
+  archivedAt   DateTime?
+  createdBy    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  members      ProjectMember[]
+  phases       Phase[]
+  tasks        Task[]
+  catalogs     FileCatalog[]
+  requirements FileRequirement[]
+  files        File[]
+  conversations Conversation[]
+  activityLogs ActivityLog[]
+  // ── 采购管理反向关系（2026-08-22 ★ 新模块）──
+  purchaseRequests  PurchaseRequest[]
+  supplierRequests  SupplierRequest[]
+  purchaseOrders    PurchaseOrder[]
+  goodsArrivals     GoodsArrival[]
+  // ── 项目费用模块反向关系（报销单+明细结构重构 2026-08-24）──
+  expenseClaims ExpenseClaim[]
+
+  @@index([status, isArchived])
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+enum ProjectPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+enum ProjectRole {
+  OWNER
+  MANAGER
+  MEMBER
+  VIEWER
+}
+
+model ProjectMember {
+  id        String      @id @default(cuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  role      ProjectRole @default(MEMBER)
+  title     String?                                  // 项目内头衔：商务负责人/技术负责人
+  joinedAt  DateTime @default(now())
+  @@unique([projectId, userId])
+}
+
+model Phase {
+  id           String      @id @default(cuid())
+  projectId    String
+  project      Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code         String                                   // PH01..PH20
+  name         String                                   // 商务拜访
+  order        Int
+  status       PhaseStatus @default(NOT_STARTED)
+  ownerId      String?                                  // 阶段负责人
+  owner        User?       @relation("PhaseOwner", fields: [ownerId], references: [id])
+  plannedStart DateTime?
+  plannedEnd   DateTime?
+  actualStart  DateTime?
+  actualEnd    DateTime?
+  progress     Int         @default(0)                 // 子任务完成率（自动）
+  skippedNote  String?                                  // 跳过原因
+  checklist    Json?                                     // [{text, checked, checkedBy, checkedAt}]
+  tasks        Task[]
+  @@unique([projectId, code])
+  @@index([projectId, order])
+}
+
+enum PhaseStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
+  SKIPPED
+  PAUSED
+}
+model Task {
+  id           String    @id @default(cuid())
+  phaseId      String?                             // ★ 必挂阶段（历史任务可为空）
+  phase        Phase?    @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  status       TaskStatus @default(TODO)
+  priority     TaskPriority @default(MEDIUM)
+  assigneeId   String?
+  assignee     User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creatorId    String
+  creator      User      @relation("TaskCreator", fields: [creatorId], references: [id])
+  dueDate      DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  revision     Int       @default(1)
+  annotations  Annotation[]
+  revisions    TaskRevision[]
+  comments     Comment[]
+  @@index([projectId, phaseId, status])
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+  CANCELLED
+}
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+model TaskRevision {                                // 修订历史（快照+说明）
+  id           String   @id @default(cuid())
+  taskId       String?  // 可空：任务删除后保留修订快照（审计链，SetNull）
+  task         Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  version      Int                                          // = task.revision
+  changeSummary String                                      // 修订说明（重大变更必填）
+  changedById  String
+  changedBy    User     @relation(fields: [changedById], references: [id])
+  snapshot     Json                                         // 修订前任务快照
+  createdAt    DateTime @default(now())
+  @@unique([taskId, version])
+}
+
+model Annotation {                                  // 标注
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  field     String?                                       // 锚定字段（可空=整任务）
+  color     String   @default("yellow")                  // yellow/red/blue/green
+  note      String                                        // 批注内容
+  resolved  Boolean  @default(false)                     // 已解决
+  createdAt DateTime @default(now())
+  @@index([taskId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  content   String
+  mentions  Json?                                        // ["userId"...] @的人
+  createdAt DateTime @default(now())
+  @@index([taskId])
+}
+
+// ═══════════ 文件目录管理 ═══════════
+
+model FileCatalog {                                 // 目录树
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    FileCatalog?  @relation("CatalogTree", fields: [parentId], references: [id])
+  children  FileCatalog[] @relation("CatalogTree")
+  name      String                                 // 01-商务文件
+  phaseCode String?                                 // 关联 PH01
+  order     Int     @default(0)
+  remark    String?                                 // 用途说明
+  requirements FileRequirement[]
+  @@index([projectId, parentId])
+}
+
+enum FileScope    {
+  PUBLIC
+  RESTRICTED
+  PRIVATE
+}
+enum FileStatusFm {
+  WAITING
+  SUBMITTED
+  REVIEWING
+  APPROVED
+  REJECTED
+  NA
+  OBSOLETED
+}
+model FileRequirement {                             // ★ 文件条目（交付计划）
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  catalogId   String
+  catalog     FileCatalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  phaseCode   String?                              // 关联阶段（催办/视图分组用）
+  name        String                              // 所需文件名
+  code        String?                              // 文件编号 PROJ-PH05-E-001
+  required    Boolean  @default(true)              // 必需（归档拦截项）
+  ownerId     String?                              // 责任人（内部）
+  owner       User?     @relation("RequirementOwner", fields: [ownerId], references: [id])
+  externalOrgId String?                            // 外部提供方（供应商）ExternalOrg.id
+  purpose     String?                              // 用途：报审/存档/客户交付/施工依据
+  scope       FileScope @default(PUBLIC)
+  scopeRefs   Json?                                // RESTRICTED 时 {userIds:[],deptIds:[]}
+  dueDate     DateTime?
+  status      FileStatusFm @default(WAITING)
+  reviewerId  String?
+  reviewer    User?     @relation("RequirementReviewer", fields: [reviewerId], references: [id])
+  remark      String?
+  files       File[]
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  @@index([projectId, catalogId, status])
+}
+
+model File {
+  id            String   @id @default(cuid())
+  requirementId String?                         // 可空=计划外临时文件
+  requirement   FileRequirement? @relation(fields: [requirementId], references: [id])
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name          String                             // 显示名（含版本）
+  originalName  String
+  storagePath   String                             // {FILE_ROOT}/{projectId}/{catalogId}/{uuid}.{ext}
+  size          Int
+  mimeType      String
+  checksum      String?                           // sha256
+  version       Int      @default(1)              // 同条目内递增
+  uploadedById  String
+  uploadedBy    User     @relation(fields: [uploadedById], references: [id])
+  createdAt     DateTime @default(now())
+  accessLogs    FileAccessLog[]
+  @@index([projectId, requirementId])
+}
+
+model FileAccessLog {
+  id       String   @id @default(cuid())
+  fileId   String?  // 可空：文件删除后保留访问日志（审计链，SetNull）
+  file     File?    @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  action   FileAccessAction
+  at       DateTime @default(now())
+  @@index([fileId])
+}
+enum FileAccessAction {
+  VIEW
+  DOWNLOAD
+  UPLOAD
+  APPROVE
+  REJECT
+  OBSOLETE
+}
+
+model ResourcePermission {
+  id            String @id @default(cuid())
+  resourceType  ResType                            // PROJECT/PHASE/TASK/FILE_FOLDER/FILE_REQ
+  resourceId    String
+  principalType PrincipalType                      // USER/DEPARTMENT/ROLE
+  principalId   String
+  perms         Json                               // {view,edit,delete,assign,upload,download,approve}
+  grantedById   String
+  grantedBy     User   @relation("Grantor", fields: [grantedById], references: [id])
+  createdAt     DateTime @default(now())
+  @@unique([resourceType, resourceId, principalType, principalId])
+  @@index([resourceType, resourceId])
+}
+enum ResType        {
+  PROJECT
+  PHASE
+  TASK
+  FILE_FOLDER
+  FILE_REQ
+}
+enum PrincipalType  {
+  USER
+  DEPARTMENT
+  ROLE
+}
+
+enum ConvType   {
+  SINGLE
+  PROJECT_GROUP
+  GROUP
+  ISSUE
+  REPORT
+}
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+model Conversation {
+  id           String   @id @default(cuid())
+  type         ConvType
+  name         String?                                 // 群名
+  avatar       String?
+  projectId    String?
+  project      Project? @relation(fields: [projectId], references: [id])
+  createdBy    String
+  lastMessageAt DateTime @default(now())
+  members      ConversationMember[]
+  messages     Message[]
+  @@index([projectId])
+}
+
+model ConversationMember {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  role           MemberRole   @default(MEMBER)
+  lastReadAt     DateTime?
+  muted          Boolean  @default(false)
+  joinedAt       DateTime @default(now())
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+enum MsgType {
+  TEXT
+  IMAGE
+  FILE
+  TASK_CARD
+  PHASE_CARD
+  SYSTEM
+  REPORT
+  ISSUE
+}
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  senderId       String
+  sender         User     @relation(fields: [senderId], references: [id])
+  type           MsgType  @default(TEXT)
+  content        String                             // TEXT:文字；CARD:JSON{taskId/phaseId}；REPORT/ISSUE:JSON结构
+  replyToId      String?
+  replyTo        Message? @relation("Reply", fields: [replyToId], references: [id])
+  replies        Message[] @relation("Reply")
+  fileMeta       Json?                              // {name,size,mimeType, fileId}
+  mentions       Json?                              // [userId]
+  revoked        Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  @@index([conversationId, createdAt])
+}
+
+// ═══════════ 通知与待办 ═══════════
+
+enum NotifType {
+  TASK_ASSIGNED
+  TASK_UPDATED
+  TASK_COMPLETED
+  PHASE_UPDATED
+  FILE_PENDING_REVIEW
+  FILE_APPROVED
+  FILE_DUE_SOON
+  MENTION
+  ISSUE_NEW
+  ISSUE_RESOLVED
+  REPORT_NEW
+  SYSTEM
+  // ── ★ V3 采购模块（2026-08-22）──
+  PURCHASE_REQUEST_SUBMITTED   // 清单提交 → 通知采购部
+  PURCHASE_CONTRACT_CONFIRMED  // 合同确认 → 通知发布人
+  PURCHASE_ORDERED             // 已下单 → 通知发布人
+  PURCHASE_SHIPPED             // 已发货 → 通知收货人
+  PURCHASE_RECEIVED            // 已收货 → 通知发布人 + PM
+  PURCHASE_REJECTED            // 拒收/缺件 → 通知采购 + PM
+  PURCHASE_STATUS_CHANGED      // 通用状态推进 → 通知发布人
+}
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  type      NotifType
+  title     String
+  body      String?
+  link      String?                                  // 站内跳转 /projects/x/phases/y
+  isRead    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  @@index([userId, isRead])
+}
+
+model TodoItem {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  title      String
+  sourceType TodoSrc  @default(MANUAL)
+  sourceId   String?                                  // 关联实体 id
+  link       String?
+  dueAt      DateTime?
+  doneAt     DateTime?
+  priority   TaskPriority @default(MEDIUM)
+  createdAt  DateTime @default(now())
+  @@index([userId, doneAt])
+}
+enum TodoSrc {
+  MANUAL
+  TASK
+  PHASE
+  FILE_REQ
+  MESSAGE
+  ISSUE
+  REPORT
+  // ── ★ V3 采购模块（2026-08-22）──
+  PURCHASE_REQUEST   // 采购受理待办
+  PURCHASE_ORDER     // 采购催办/超期待办
+  PURCHASE_RECEIPT   // 待我收货（收货人收件箱）
+}
+
+model UrgeRecord {                              // ★ 催办记录（2026-08-22 工作台「我的催办」）
+  id               String    @id @default(cuid())
+  projectId        String
+  projectCode      String                          // 冗余：项目编号（列表展示免 join）
+  requirementId    String
+  requirementName  String                          // 冗余：交付物名称
+  urgedById        String                          // 发起催办的人
+  urgedBy          User      @relation("UrgeSender", fields: [urgedById], references: [id])
+  targetUserId     String                          // 被催的人
+  targetUser       User      @relation("UrgeTarget", fields: [targetUserId], references: [id])
+  status           String    @default("ACTIVE")   // ACTIVE=未处理 / DONE=已提交（doneAt 落库）
+  doneAt           DateTime?                       // 被催人提交后置位（催办闭环）
+  createdAt        DateTime  @default(now())
+  @@index([targetUserId, status])
+  @@index([urgedById, status])
+  @@index([requirementId])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  projectId  String?
+  project    Project? @relation(fields: [projectId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String                              // project.create / phase.done / file.approve ...
+  detail     Json?                               // 变更明细 {field: [old, new]}
+  createdAt  DateTime @default(now())
+  @@index([projectId, createdAt])
+}
+
+// ═══════════ 系统设置（P5 admin/审计/存储）═══════════
+
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+// ═══════════ 采购管理（2026-08-22 ★ 新模块，依据 docs/设计方案-采购管理.md v2 §3）═══════════
+// 完整工作流：成员提清单(PurchaseRequest) → 采购分解发需求(SupplierRequest)
+//   → 下单=合同(PurchaseOrder) → 到货清点(GoodsArrival) → 成本汇总(settlementAmount)
+
+enum PurchaseRequestStatus {
+  DRAFT        // 草稿（成员编辑中）
+  SUBMITTED    // 已提交（流转到采购部，待受理）
+  PROCESSING   // 采购处理中（已受理，正在分解/询价）
+  DECOMPOSED   // 已分解（已拆分出采购需求，进入订单/到货环节）
+  COMPLETED    // 已完成（全部下单并到货）
+  REJECTED     // 已驳回（回退给提需求人，可改后重提）
+}
+
+enum PurchaseRequestPriority {
+  LOW          // 低
+  NORMAL       // 普通
+  URGENT       // 紧急（加急采购）
+}
+
+enum SupplierRequestStatus {
+  DRAFT        // 待发布（采购整理中）
+  PUBLISHED    // 已发布（已发询价/需求给供应商）
+  QUOTED       // 供应商确认/报价（采购线下收集后录入）
+  ORDERED      // 已下单（已转采购订单）
+  CANCELLED    // 已取消
+}
+
+enum PurchaseOrderStatus {
+  DRAFT        // 草稿（未下单，可编辑/删除）
+  ORDERED      // 已下单（待收货）
+  PARTIAL      // 部分到货（已收货数量 < 下单数量）
+  COMPLETED    // 已完成（全部到货）
+  CANCELLED    // 已取消
+  // ── ★ V3 新增（2026-08-22 工作流标签链，见设计方案-采购管理-v3 §2.1）──
+  CONTRACT_PENDING // 待合同（供应商做合同中，等供应商合同）
+  CONFIRMED    // 合同已确认（采购确认合同与价格）
+  PREPARING    // 已付款·备货中
+  SHIPPED      // 已发货（在途）
+}
+
+// ── ★ V3 新增枚举（合同/付款/交货）──
+enum ContractStatus {
+  PENDING     // 供应商已发合同，待采购确认
+  CONFIRMED   // 采购确认合同与价格
+  VOIDED      // 已作废/驳回
+}
+
+enum PaymentType {
+  PREPAYMENT  // 预付款
+  FULL        // 全款
+  TAIL        // 尾款
+  REFUND      // 退款（负向冲减）
+}
+
+enum PaymentStatus {
+  PLANNED     // 待付（按付款条款生成的计划行）
+  PAID        // 已付
+}
+
+enum DeliveryType {
+  TO_COMPANY   // 发货到下单公司
+  TO_CUSTOMER  // 发货到客户指定地址
+  SELF_PICKUP  // 自提
+}
+
+enum PurchaseCategory {
+  MECHANICAL   // 机械（容器/管路/阀门/结构件等）
+  ELECTRICAL   // 电气（元件/PLC/线缆/仪表等）
+  OTHER        // 其他（辅材/工具等，兜底）
+}
+
+enum ArrivalStatus {
+  PENDING      // 在途/待收（已创建未确认）
+  RECEIVED     // 已到货（全部合格到齐）
+  PARTIAL      // 部分到货（存在缺件/破损）
+  REJECTED     // 整单拒收/退回
+}
+
+model PurchaseRequest {                             // ★ 采购清单（成员提需求）
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code          String   @unique                    // 清单编号 PR-DEMO26001-001（应用层生成）
+  title         String                              // 清单标题（如「电气车间二期加急元器件」）
+  purpose       String?                             // 用途说明（哪个部位/工序要用）
+  category      PurchaseCategory @default(OTHER)   // 类别（供分类统计；可随明细补正）
+  status        PurchaseRequestStatus @default(DRAFT)
+  priority      PurchaseRequestPriority @default(NORMAL)
+  expectedArrivalDate DateTime?                     // 期望到货时间（成员期望，采购可协商）
+  requesterId   String                              // 提需求人（任何项目成员）
+  requester     User    @relation("PurchaseRequester", fields: [requesterId], references: [id])
+  handlerId     String?                             // 采购受理人（采购部）
+  handler       User?   @relation("PurchaseRequestHandler", fields: [handlerId], references: [id])
+  rejectReason  String?                             // 驳回原因（REJECTED 时必填）
+  remark        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items            PurchaseRequestItem[]
+  supplierRequests SupplierRequest[]                // 分解出的采购需求
+
+  @@index([projectId, status])
+  @@index([requesterId])
+  @@index([status, priority])
+}
+
+model PurchaseRequestItem {
+  id           String   @id @default(cuid())
+  requestId    String
+  request      PurchaseRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  name         String                              // 物料名称（如「不锈钢球阀」「PLC 模块 CPU1214C」）
+  spec         String?                             // 规格型号（DN50/PN16、6ES7 214-1AG40…）
+  param        String?                             // ★ V3：参数（3P 250A 50KA、0.75KW，区别于 spec 型号）
+  brand        String?                             // 品牌（空=不限品牌，见方案 §3.6）
+  quantity     Decimal  @db.Decimal(12,2)          // 需求数量
+  unit         String   @default("件")             // 单位：件/米/套/个/台…
+  targetPrice  Decimal? @db.Decimal(14,2)          // 期望单价（询价参考，金额脱敏）
+  remark       String?                             // 备注/技术要求
+  allocatedQty Decimal  @db.Decimal(12,2) @default(0) // 已分解数量（由采购需求回写汇总，冗余）
+
+  @@index([requestId])
+}
+
+model SupplierRequest {                             // ★ 品牌采购任务（V3：同品牌汇总，供应商后绑定）
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code        String   @unique                     // 需求编号 SR-DEMO26001-001（应用层生成）
+  requestId   String?                              // 来源采购清单（空=采购直接发起）
+  request     PurchaseRequest? @relation(fields: [requestId], references: [id])
+  brand       String?                              // ★ V3：品牌汇总维度（分组主键，如「SCHNEIDER」）
+  supplierId  String?                              // ★ V3 改可空：步骤③找供应商后才绑定
+  supplier    ExternalOrg? @relation(fields: [supplierId], references: [id])
+  title       String?                              // 需求标题（如「西门子电气元件询价」）
+  category    PurchaseCategory @default(OTHER)
+  status      SupplierRequestStatus @default(DRAFT)
+  expectedDate DateTime?                           // 期望交货日期
+  // ── 询价/报价（供应商线下报价，采购录入）──
+  quoteAmount Decimal? @db.Decimal(14,2)           // 供应商报价总额（= 明细 sum，冗余）
+  quoteNote   String?                              // 报价备注（付款条件、交期等）
+  quotedAt    DateTime?
+  // ── 下单关联（1:1：本表持 FK，PurchaseOrder.supplierRequest 为反向导航）──
+  orderId     String?   @unique                    // 转成的采购订单（一个需求 → 一张订单）
+  order       PurchaseOrder? @relation("SupplierRequestOrder", fields: [orderId], references: [id])
+  creatorId   String                               // 采购经办人
+  creator     User    @relation("SupplierRequestCreator", fields: [creatorId], references: [id])
+  remark      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items SupplierRequestItem[]
+
+  @@index([projectId, status])
+  @@index([supplierId, status])
+  @@index([requestId])
+  @@index([brand])
+}
+
+model SupplierRequestItem {
+  id                String   @id @default(cuid())
+  supplierRequestId String
+  supplierRequest   SupplierRequest @relation(fields: [supplierRequestId], references: [id], onDelete: Cascade)
+  name              String                        // 物料名称（合并同类项后）
+  spec              String?                       // 规格型号
+  param             String?                       // ★ V3：参数
+  brand             String?                       // 品牌
+  quantity          Decimal  @db.Decimal(12,2)    // 询价/需求数量
+  unit              String   @default("件")
+  unitPrice         Decimal? @db.Decimal(14,2)    // 供应商报价单价（金额脱敏）
+  remark            String?
+  // 溯源：来自哪些清单条目（Postgres 数组存 PurchaseRequestItem.id，MVP 轻量方案）
+  sourceRequestItemIds String[] @default([])
+
+  @@index([supplierRequestId])
+}
+
+model PurchaseOrder {                               // ★ 采购订单（订单=合同）
+  id            String              @id @default(cuid())
+  projectId     String
+  project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code          String              @unique         // 订单编号 CG-DEMO26001-001（应用层生成）
+  category      PurchaseCategory    @default(MECHANICAL)
+  supplierId    String?                             // 供应商（ExternalOrg.type=SUPPLIER）
+  supplier      ExternalOrg?        @relation(fields: [supplierId], references: [id])
+  title         String                              // 订单标题（如「电气元件第一批」）
+  status        PurchaseOrderStatus @default(DRAFT)
+  isSupplementary Boolean           @default(false) // 追加采购（现场缺件/加急）标记
+  supplementaryReason String?                       // 追加原因：现场缺件/临时加急/设计变更/损耗补充…
+  supplementaryOfId String?                        // 补充指向的原订单（可选，多退少补场景）
+  supplementaryOf PurchaseOrder?    @relation("Supplementary", fields: [supplementaryOfId], references: [id])
+  supplementaryItems PurchaseOrder[] @relation("Supplementary") // 反向：由本单衍生的追加单
+  orderDate     DateTime?                           // 下单日期
+  plannedArrivalDate DateTime?                      // 计划到货日期
+  amount        Decimal?            @db.Decimal(14,2) // 订单总金额（= 明细 sum，冗余存）
+  settlementAmount Decimal?         @db.Decimal(14,2) // ★ 实际结算金额（验收后退换/拒收扣减，成本汇总用）
+  remark        String?
+  ownerId       String?                             // 采购负责人（采购专员）
+  owner         User?               @relation("PurchaseOwner", fields: [ownerId], references: [id])
+  creatorId     String
+  creator       User                @relation("PurchaseCreator", fields: [creatorId], references: [id])
+  // ★ 溯源：来自哪个采购需求（1:1 反向导航，FK 在 SupplierRequest.orderId）
+  supplierRequest SupplierRequest?  @relation("SupplierRequestOrder")
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  items         PurchaseOrderItem[]
+  arrivals      GoodsArrival[]
+
+  // ── ★ V3 新增：交货方式（步骤⑦：发货到公司 / 客户指定地址）──
+  deliveryType    DeliveryType @default(TO_COMPANY)
+  deliveryAddress String?                              // 收货地址（TO_CUSTOMER 时填客户/工地地址）
+  deliveryContact String?                              // 收货联系人+电话（给供应商填送货单）
+  receiverId      String?                              // ★ 指派收货确认人（库房/现场）
+  receiver        User?  @relation("OrderReceiver", fields: [receiverId], references: [id])
+
+  // ── ★ V3 新增：发货跟踪（步骤⑥）──
+  shippedAt       DateTime?                            // 供应商发货时间
+  shippingNote    String?                              // 运单号/物流备注
+
+  // ── ★ V3 新增：付款聚合冗余（列表快速显示三态标签）──
+  paidAmount      Decimal? @db.Decimal(14,2) @default(0) // 已付累计（= Σ付款记录，退款冲减）
+
+  // ── ★ V3 新增：关联 ──
+  contract        PurchaseContract?                    // 合同（1:1）
+  payments        PurchasePayment[]                    // 付款流水（1:N）
+
+  @@index([projectId, status])
+  @@index([supplierId])
+  @@index([category, status])
+}
+
+// ── ★ V3 新增：采购合同（1:1 关联订单，登记制非电子签章）──
+model PurchaseContract {
+  id                 String   @id @default(cuid())
+  orderId            String   @unique                  // 一单一合同（1:1）
+  order              PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  contractNo         String?                           // 我方合同编号（默认=订单 code）
+  supplierContractNo String?                           // 供应商合同编号（对方来文号，对账用）
+  contractAmount     Decimal? @db.Decimal(14,2)        // 合同金额（= 报价确认额）
+  deliveryTerms      String?                           // 交货期条款（合同生效后 N 天 / X 日前）
+  paymentTerms       String?                           // 付款条款（预付30%+到货70% / 全款预付）
+  fileId             String?                           // 盖章合同扫描件（引用 File.id）
+  status             ContractStatus @default(PENDING)
+  confirmedAt        DateTime?                         // 采购确认时间
+  confirmedById      String?                           // 确认人（采购）
+  confirmedBy        User? @relation("ContractConfirmer", fields: [confirmedById], references: [id])
+  voidReason         String?                           // 作废原因
+  remark             String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// ── ★ V3 新增：付款流水（1:N 关联订单，登记制非财务对接）──
+model PurchasePayment {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type        PaymentType @default(PREPAYMENT)   // 预付款/全款/尾款/退款
+  amount      Decimal  @db.Decimal(14,2)         // 本期金额（退款记负向冲减）
+  status      PaymentStatus @default(PAID)       // 待付/已付
+  paidAt      DateTime @default(now())           // 实际付款日期
+  method      String?                            // 银行转账/承兑汇票/现金
+  voucherNo   String?                            // 付款凭证号/银行流水号
+  invoiceNo   String?                            // 关联发票号（先票后款场景）
+  createdById String
+  createdBy   User     @relation("PaymentCreator", fields: [createdById], references: [id])
+  remark      String?
+  createdAt   DateTime @default(now())
+
+  @@index([orderId])
+}
+
+// ── ★ V3 新增：采购单据单独授权（硬性要求 C：管理员单独授权）──
+model PurchaseScopeGrant {
+  id            String   @id @default(cuid())
+  scopeType     String                            // PURCHASE_REQUEST | PURCHASE_ORDER | PURCHASE_ALL
+  scopeId       String?                           // 单据 id（PURCHASE_ALL 时为空）
+  userId        String
+  user          User @relation("PurchaseGrantUser", fields: [userId], references: [id])
+  canViewAmount Boolean @default(false)           // 是否同时可见金额（细粒度兑底）
+  grantedById   String
+  grantedBy     User @relation("PurchaseGrantor", fields: [grantedById], references: [id])
+  createdAt     DateTime @default(now())
+
+  @@unique([scopeType, scopeId, userId])
+  @@index([userId])
+}
+
+model PurchaseOrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  name        String                  // 物料名称
+  spec        String?                 // 规格型号
+  brand       String?                 // ★ 品牌（贯穿清单→需求→订单全链路）
+  quantity    Decimal  @db.Decimal(12,2) // 下单数量
+  unit        String   @default("件")
+  unitPrice   Decimal? @db.Decimal(14,2) // 单价（元）
+  receivedQty Decimal  @db.Decimal(12,2) @default(0) // 已到货（合格）数量（由到货明细回写汇总）
+  remark      String?
+
+  arrivals    GoodsArrivalItem[]
+
+  @@index([orderId])
+}
+
+model GoodsArrival {                                // ★ 到货清点（V3：收货人确认闭环）
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  orderId     String
+  order       PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  batchNo     String                  // 到货批次号（默认 {orderCode}-{seq}，可改供应商送货单号）
+  supplierId  String?                 // 实际到货供应商（通常=订单供应商，可单独填）
+  supplier    ExternalOrg? @relation(fields: [supplierId], references: [id])
+  arrivalDate DateTime @default(now())   // 到货日期
+  status      ArrivalStatus @default(PENDING)
+  remark      String?                  // 备注（缺件说明、加急标记等）
+  createdById String
+  createdBy   User     @relation("ArrivalCreator", fields: [createdById], references: [id])
+  createdAt   DateTime @default(now())
+
+  // ── ★ V3 新增：交货方式 + 收货确认留痕 ──
+  deliveryType    DeliveryType @default(TO_COMPANY)   // 本次实际收货地址类型
+  shippingAddress String?                              // 实际收货地址（客户指定时）
+  receiverId      String?                              // 收货人（库房/现场，与订单 receiverId 可不同）
+  receiver        User?  @relation("ArrivalReceiver", fields: [receiverId], references: [id])
+  confirmedById   String?                              // ★ 确认收货人（可与登记人不同）
+  confirmedBy     User?  @relation("ArrivalConfirmer", fields: [confirmedById], references: [id])
+  confirmedAt     DateTime?                            // ★ 确认收货时间
+  proofNote       String?                              // 签收凭证说明（送货单号/照片文件）
+
+  items       GoodsArrivalItem[]
+
+  @@index([orderId])
+  @@index([projectId, arrivalDate])
+  @@index([receiverId, confirmedAt])
+}
+
+model GoodsArrivalItem {
+  id          String   @id @default(cuid())
+  arrivalId   String
+  arrival     GoodsArrival @relation(fields: [arrivalId], references: [id], onDelete: Cascade)
+  orderItemId String
+  orderItem   PurchaseOrderItem @relation(fields: [orderItemId], references: [id])
+  arrivedQty  Decimal  @db.Decimal(12,2)   // 实到合格数量
+  defectQty   Decimal  @db.Decimal(12,2) @default(0)  // ★ 破损数量（到货即坏）
+  rejectQty   Decimal  @db.Decimal(12,2) @default(0)  // ★ 拒收/退回数量（不合格退回）
+  remark      String?                      // 该行备注（如「到货缺 2 件」「外包装破损」）
+
+  @@index([arrivalId])
+  @@index([orderItemId])
+}
+
+// ═══════════ 项目费用模块（F1：数据模型+分类字典）═══════════
+// 工作流：草稿 DRAFT → 已提交 SUBMITTED → 已审批 APPROVED → 已打款 PAID
+//         （SUBMITTED 提交后可被驳回 REJECTED，回退后修改重提；APPROVED 后不可驳回）
+
+enum ExpenseStatus {
+  DRAFT      // 草稿
+  SUBMITTED  // 已提交
+  APPROVED   // 已审批
+  REJECTED   // 已驳回
+  PAID       // 已打款
+}
+
+model ExpenseCategory {                              // ★ 费用分类字典（isSystem=true 为系统预置）
+  id        String   @id @default(cuid())
+  name      String   @unique                       // 差旅费
+  code      String   @unique                       // TRIP
+  sort      Int      @default(0)                   // 排序
+  isSystem  Boolean  @default(false)               // 系统预置（不可删）
+  isActive  Boolean  @default(true)                // 启用状态
+  createdAt DateTime @default(now())
+
+  items  ExpenseItem[]
+}
+
+model ExpenseClaim {                                // ★ 报销单（一张单对应多条费用明细）
+  id             String        @id @default(cuid())
+  projectId      String
+  project        Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  payeeId        String                          // 报销人
+  payee          User          @relation("ExpenseClaimPayee", fields: [payeeId], references: [id])
+  status         ExpenseStatus @default(DRAFT)
+  totalAmount    Decimal       @db.Decimal(12,2) @default(0) // 汇总金额（由明细累加）
+  rejectedReason String?                         // 驳回原因
+  approvedById   String?                         // 审批人
+  approvedBy     User?          @relation("ExpenseClaimApprover", fields: [approvedById], references: [id])
+  approvedAt     DateTime?                       // 审批时间
+  paidById       String?                         // 打款人
+  paidBy         User?          @relation("ExpenseClaimPayer", fields: [paidById], references: [id])
+  paidAt         DateTime?                       // 打款时间
+  remark         String?                         // 备注
+  createdById    String                          // 创建人
+  createdBy      User           @relation("ExpenseClaimCreator", fields: [createdById], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  items ExpenseItem[]
+
+  @@index([projectId])
+  @@index([payeeId])
+  @@index([status])
+}
+
+model ExpenseItem {                                 // ★ 费用明细（挂在报销单下）
+  id          String         @id @default(cuid())
+  claimId     String
+  claim       ExpenseClaim   @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    ExpenseCategory @relation(fields: [categoryId], references: [id])
+  amount      Decimal        @db.Decimal(12,2) // 金额（元）
+  expenseDate DateTime                         // 费用发生日期
+  description String?                          // 费用说明
+
+  @@index([claimId])
+  @@index([categoryId])
+}

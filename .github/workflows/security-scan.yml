@@ -1,0 +1,100 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # 每周一早上6点
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        scanner: [trivy, snyk, codeql]
+        
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run ${{ matrix.scanner }} scan
+      if: matrix.scanner == 'trivy'
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        
+    - name: Run Snyk scan
+      if: matrix.scanner == 'snyk'
+      uses: snyk/actions/node@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      with:
+        args: --severity-threshold=high
+        command: test
+        
+    - name: Initialize CodeQL
+      if: matrix.scanner == 'codeql'
+      uses: github/codeql-action/init@v2
+      with:
+        languages: javascript
+        
+    - name: Perform CodeQL Analysis
+      if: matrix.scanner == 'codeql'
+      uses: github/codeql-action/analyze@v2
+      
+    - name: Upload results to GitHub Security
+      if: matrix.scanner == 'trivy'
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run npm audit
+      run: npm audit --audit-level=moderate --json
+      
+    - name: Check for outdated dependencies
+      run: npm outdated
+      
+    - name: Generate dependency report
+      run: |
+        npm list --depth=0 > dependency-report.txt
+        npm audit --json > audit-report.json
+        
+    - name: Upload reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-reports
+        path: |
+          dependency-report.txt
+          audit-report.json

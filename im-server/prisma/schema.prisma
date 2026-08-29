@@ -1,0 +1,603 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════ 认证与用户 ═══════════
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  password     String                       // bcrypt
+  name         String
+  phone        String?
+  avatar       String?
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id])
+  jobTitle     String?                      // 岗位名（冗余自岗位字典，显示用）
+  duties       String?                      // 职责描述
+  role         GlobalRole @default(MEMBER)   // 全局角色
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accounts         Account[]
+  sessions         Session[]
+  projectMembers   ProjectMember[]
+  phaseOwners      Phase[]        @relation("PhaseOwner")
+  tasksAssigned    Task[]         @relation("TaskAssignee")
+  tasksCreated     Task[]         @relation("TaskCreator")
+  revisions        TaskRevision[]
+  annotations      Annotation[]
+  filesUploaded    File[]
+  comments         Comment[]
+  requirementOwns  FileRequirement[] @relation("RequirementOwner")
+  requirementRevs  FileRequirement[] @relation("RequirementReviewer")
+  messages         Message[]
+  conversations    ConversationMember[]
+  todos            TodoItem[]
+  notifications    Notification[]
+  accessLogs       FileAccessLog[]
+  permissionsGiven ResourcePermission[] @relation("Grantor")
+  activityLogs     ActivityLog[]
+
+  @@index([departmentId])
+}
+
+// ═══════════ NextAuth.js 兼容表（旧 schema 保留）═══════════
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+enum GlobalRole {
+  ADMIN
+  PROJECT_MANAGER
+  MEMBER
+}
+
+// ═══════════ 组织架构（内+外）═══════════
+
+model Department {
+  id        String  @id @default(cuid())
+  name      String                              // 电气设计部
+  parentId  String?
+  parent    Department?  @relation("DeptTree", fields: [parentId], references: [id])
+  children  Department[] @relation("DeptTree")
+  managerId String?                             // 部门负责人 userId
+  sort      Int     @default(0)
+  members   User[]
+  @@index([parentId])
+}
+
+model JobTitle {                                  // 岗位字典（流程模板绑定用）
+  id        String @id @default(cuid())
+  name      String @unique                        // 商务经理/电气工程师…
+  deptHint  String?                               // 建议归属部门
+  sort      Int    @default(0)
+}
+
+enum ExternalOrgType {
+  CUSTOMER
+  SUPPLIER
+  OUTSOURCER
+  CONTRACTOR
+  OTHER
+}
+model ExternalOrg {                               // 外部主体（不登录，仅档案）
+  id        String          @id @default(cuid())
+  name      String                               // 公司名
+  type      ExternalOrgType
+  phone     String?
+  address   String?
+  remark    String?
+  isActive  Boolean         @default(true)
+  contacts  ExternalContact[]
+  projects  Project[]
+  @@index([type])
+}
+
+model ExternalContact {
+  id       String      @id @default(cuid())
+  orgId    String
+  org      ExternalOrg @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name     String
+  title    String?                                 // 职务
+  phone    String?
+  email    String?
+  remark   String?                                 // 对接事项
+  @@index([orgId])
+}
+
+// ═══════════ 流程模板 ═══════════
+
+model ProcessTemplate {
+  id        String  @id @default(cuid())
+  name      String                             // 标准交付流程20步
+  isDefault Boolean @default(false)
+  stages    TemplateStage[]
+  projects  Project[]
+}
+
+model TemplateStage {
+  id             String  @id @default(cuid())
+  templateId     String
+  template       ProcessTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  name           String                            // 商务拜访
+  order          Int
+  ownerJobTitle  String?                           // ★ 负责岗位名（引用 JobTitle.name）
+  deliverables   Json?                             // 交付物数组 [{name, required, purpose, scope}]
+  checklist      Json?                             // 阶段验收检查项 ["..."]
+  @@index([templateId])
+}
+
+// ═══════════ 项目与流程 ═══════════
+
+model Project {
+  id           String   @id @default(cuid())
+  code         String   @unique                  // 项目编号 DEMO25021（演示编号规则：DEMO+年份后两位+3位流水，见 §7.4）
+  contractNo   String?                            // 客户合同编号（SHYYHT*/YYFLDJ*/GCB-* 等，台账原文）
+  location     String?                            // 施工地/项目地点（赵县/河南一期/国外…）
+  signedAt     DateTime?                          // 签约日期
+  name         String
+  description  String?
+  status       ProjectStatus @default(ACTIVE)
+  priority     ProjectPriority @default(MEDIUM)
+  amount       Decimal? @db.Decimal(14,2)        // 合同金额
+  customerId   String?                            // ExternalOrg.id
+  customer     ExternalOrg? @relation(fields: [customerId], references: [id])
+  plannedStart DateTime?
+  plannedEnd   DateTime?
+  actualEnd    DateTime?
+  templateId   String?
+  template     ProcessTemplate? @relation(fields: [templateId], references: [id])
+  isArchived   Boolean  @default(false)
+  archivedAt   DateTime?
+  createdBy    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  members      ProjectMember[]
+  phases       Phase[]
+  tasks        Task[]
+  catalogs     FileCatalog[]
+  requirements FileRequirement[]
+  files        File[]
+  conversations Conversation[]
+  activityLogs ActivityLog[]
+
+  @@index([status, isArchived])
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+enum ProjectPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+enum ProjectRole {
+  OWNER
+  MANAGER
+  MEMBER
+  VIEWER
+}
+
+model ProjectMember {
+  id        String      @id @default(cuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  role      ProjectRole @default(MEMBER)
+  title     String?                                  // 项目内头衔：商务负责人/技术负责人
+  joinedAt  DateTime @default(now())
+  @@unique([projectId, userId])
+}
+
+model Phase {
+  id           String      @id @default(cuid())
+  projectId    String
+  project      Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code         String                                   // PH01..PH20
+  name         String                                   // 商务拜访
+  order        Int
+  status       PhaseStatus @default(NOT_STARTED)
+  ownerId      String?                                  // 阶段负责人
+  owner        User?       @relation("PhaseOwner", fields: [ownerId], references: [id])
+  plannedStart DateTime?
+  plannedEnd   DateTime?
+  actualStart  DateTime?
+  actualEnd    DateTime?
+  progress     Int         @default(0)                 // 子任务完成率（自动）
+  skippedNote  String?                                  // 跳过原因
+  checklist    Json?                                     // [{text, checked, checkedBy, checkedAt}]
+  tasks        Task[]
+  @@unique([projectId, code])
+  @@index([projectId, order])
+}
+
+enum PhaseStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
+  SKIPPED
+  PAUSED
+}
+model Task {
+  id           String    @id @default(cuid())
+  phaseId      String?                             // ★ 必挂阶段（历史任务可为空）
+  phase        Phase?    @relation(fields: [phaseId], references: [id], onDelete: Cascade)
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  status       TaskStatus @default(TODO)
+  priority     TaskPriority @default(MEDIUM)
+  assigneeId   String?
+  assignee     User?     @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creatorId    String
+  creator      User      @relation("TaskCreator", fields: [creatorId], references: [id])
+  dueDate      DateTime?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  revision     Int       @default(1)
+  annotations  Annotation[]
+  revisions    TaskRevision[]
+  comments     Comment[]
+  @@index([projectId, phaseId, status])
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+  CANCELLED
+}
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+model TaskRevision {                                // 修订历史（快照+说明）
+  id           String   @id @default(cuid())
+  taskId       String
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  version      Int                                          // = task.revision
+  changeSummary String                                      // 修订说明（重大变更必填）
+  changedById  String
+  changedBy    User     @relation(fields: [changedById], references: [id])
+  snapshot     Json                                         // 修订前任务快照
+  createdAt    DateTime @default(now())
+  @@unique([taskId, version])
+}
+
+model Annotation {                                  // 标注
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  field     String?                                       // 锚定字段（可空=整任务）
+  color     String   @default("yellow")                  // yellow/red/blue/green
+  note      String                                        // 批注内容
+  resolved  Boolean  @default(false)                     // 已解决
+  createdAt DateTime @default(now())
+  @@index([taskId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  content   String
+  mentions  Json?                                        // ["userId"...] @的人
+  createdAt DateTime @default(now())
+  @@index([taskId])
+}
+
+// ═══════════ 文件目录管理 ═══════════
+
+model FileCatalog {                                 // 目录树
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    FileCatalog?  @relation("CatalogTree", fields: [parentId], references: [id])
+  children  FileCatalog[] @relation("CatalogTree")
+  name      String                                 // 01-商务文件
+  phaseCode String?                                 // 关联 PH01
+  order     Int     @default(0)
+  remark    String?                                 // 用途说明
+  requirements FileRequirement[]
+  @@index([projectId, parentId])
+}
+
+enum FileScope    {
+  PUBLIC
+  RESTRICTED
+  PRIVATE
+}
+enum FileStatusFm {
+  WAITING
+  SUBMITTED
+  REVIEWING
+  APPROVED
+  REJECTED
+  NA
+  OBSOLETED
+}
+model FileRequirement {                             // ★ 文件条目（交付计划）
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  catalogId   String
+  catalog     FileCatalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  phaseCode   String?                              // 关联阶段（催办/视图分组用）
+  name        String                              // 所需文件名
+  code        String?                              // 文件编号 PROJ-PH05-E-001
+  required    Boolean  @default(true)              // 必需（归档拦截项）
+  ownerId     String?                              // 责任人（内部）
+  owner       User?     @relation("RequirementOwner", fields: [ownerId], references: [id])
+  externalOrgId String?                            // 外部提供方（供应商）ExternalOrg.id
+  purpose     String?                              // 用途：报审/存档/客户交付/施工依据
+  scope       FileScope @default(PUBLIC)
+  scopeRefs   Json?                                // RESTRICTED 时 {userIds:[],deptIds:[]}
+  dueDate     DateTime?
+  status      FileStatusFm @default(WAITING)
+  reviewerId  String?
+  reviewer    User?     @relation("RequirementReviewer", fields: [reviewerId], references: [id])
+  remark      String?
+  files       File[]
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  @@index([projectId, catalogId, status])
+}
+
+model File {
+  id            String   @id @default(cuid())
+  requirementId String?                         // 可空=计划外临时文件
+  requirement   FileRequirement? @relation(fields: [requirementId], references: [id])
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name          String                             // 显示名（含版本）
+  originalName  String
+  storagePath   String                             // {FILE_ROOT}/{projectId}/{catalogId}/{uuid}.{ext}
+  size          Int
+  mimeType      String
+  checksum      String?                           // sha256
+  version       Int      @default(1)              // 同条目内递增
+  uploadedById  String
+  uploadedBy    User     @relation(fields: [uploadedById], references: [id])
+  createdAt     DateTime @default(now())
+  accessLogs    FileAccessLog[]
+  @@index([projectId, requirementId])
+}
+
+model FileAccessLog {
+  id       String   @id @default(cuid())
+  fileId   String
+  file     File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  action   FileAccessAction
+  at       DateTime @default(now())
+  @@index([fileId])
+}
+enum FileAccessAction {
+  VIEW
+  DOWNLOAD
+  UPLOAD
+  APPROVE
+  REJECT
+  OBSOLETE
+}
+
+model ResourcePermission {
+  id            String @id @default(cuid())
+  resourceType  ResType                            // PROJECT/PHASE/TASK/FILE_FOLDER/FILE_REQ
+  resourceId    String
+  principalType PrincipalType                      // USER/DEPARTMENT/ROLE
+  principalId   String
+  perms         Json                               // {view,edit,delete,assign,upload,download,approve}
+  grantedById   String
+  grantedBy     User   @relation("Grantor", fields: [grantedById], references: [id])
+  createdAt     DateTime @default(now())
+  @@unique([resourceType, resourceId, principalType, principalId])
+  @@index([resourceType, resourceId])
+}
+enum ResType        {
+  PROJECT
+  PHASE
+  TASK
+  FILE_FOLDER
+  FILE_REQ
+}
+enum PrincipalType  {
+  USER
+  DEPARTMENT
+  ROLE
+}
+
+enum ConvType   {
+  SINGLE
+  PROJECT_GROUP
+  GROUP
+  ISSUE
+  REPORT
+}
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+model Conversation {
+  id           String   @id @default(cuid())
+  type         ConvType
+  name         String?                                 // 群名
+  avatar       String?
+  projectId    String?
+  project      Project? @relation(fields: [projectId], references: [id])
+  createdBy    String
+  lastMessageAt DateTime @default(now())
+  members      ConversationMember[]
+  messages     Message[]
+  @@index([projectId])
+}
+
+model ConversationMember {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  role           MemberRole   @default(MEMBER)
+  lastReadAt     DateTime?
+  muted          Boolean  @default(false)
+  joinedAt       DateTime @default(now())
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+enum MsgType {
+  TEXT
+  IMAGE
+  FILE
+  TASK_CARD
+  PHASE_CARD
+  SYSTEM
+  REPORT
+  ISSUE
+}
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  senderId       String
+  sender         User     @relation(fields: [senderId], references: [id])
+  type           MsgType  @default(TEXT)
+  content        String                             // TEXT:文字；CARD:JSON{taskId/phaseId}；REPORT/ISSUE:JSON结构
+  replyToId      String?
+  replyTo        Message? @relation("Reply", fields: [replyToId], references: [id])
+  replies        Message[] @relation("Reply")
+  fileMeta       Json?                              // {name,size,mimeType, fileId}
+  mentions       Json?                              // [userId]
+  revoked        Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  @@index([conversationId, createdAt])
+}
+
+// ═══════════ 通知与待办 ═══════════
+
+enum NotifType {
+  TASK_ASSIGNED
+  TASK_UPDATED
+  TASK_COMPLETED
+  PHASE_UPDATED
+  FILE_PENDING_REVIEW
+  FILE_APPROVED
+  FILE_DUE_SOON
+  MENTION
+  ISSUE_NEW
+  ISSUE_RESOLVED
+  REPORT_NEW
+  SYSTEM
+}
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  type      NotifType
+  title     String
+  body      String?
+  link      String?                                  // 站内跳转 /projects/x/phases/y
+  isRead    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  @@index([userId, isRead])
+}
+
+model TodoItem {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  title      String
+  sourceType TodoSrc  @default(MANUAL)
+  sourceId   String?                                  // 关联实体 id
+  link       String?
+  dueAt      DateTime?
+  doneAt     DateTime?
+  priority   TaskPriority @default(MEDIUM)
+  createdAt  DateTime @default(now())
+  @@index([userId, doneAt])
+}
+enum TodoSrc {
+  MANUAL
+  TASK
+  PHASE
+  FILE_REQ
+  MESSAGE
+  ISSUE
+  REPORT
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  projectId  String?
+  project    Project? @relation(fields: [projectId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String                              // project.create / phase.done / file.approve ...
+  detail     Json?                               // 变更明细 {field: [old, new]}
+  createdAt  DateTime @default(now())
+  @@index([projectId, createdAt])
+}

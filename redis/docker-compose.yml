@@ -1,0 +1,185 @@
+# Redis集群Docker Compose配置
+version: '3.8'
+
+services:
+  # Redis主节点
+  redis-master:
+    image: redis:7-alpine
+    container_name: redis-master
+    restart: unless-stopped
+    command: redis-server /etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-master-data:/data
+      - ./redis/redis-cluster.conf:/etc/redis/redis.conf
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_CLUSTER_ANNOUNCE_IP=redis-master
+    networks:
+      - redis-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis从节点1
+  redis-slave-1:
+    image: redis:7-alpine
+    container_name: redis-slave-1
+    restart: unless-stopped
+    command: redis-server /etc/redis/redis.conf
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-slave-1-data:/data
+      - ./redis/redis-cluster.conf:/etc/redis/redis.conf
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_CLUSTER_ANNOUNCE_IP=redis-slave-1
+    depends_on:
+      - redis-master
+    networks:
+      - redis-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis从节点2
+  redis-slave-2:
+    image: redis:7-alpine
+    container_name: redis-slave-2
+    restart: unless-stopped
+    command: redis-server /etc/redis/redis.conf
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis-slave-2-data:/data
+      - ./redis/redis-cluster.conf:/etc/redis/redis.conf
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_CLUSTER_ANNOUNCE_IP=redis-slave-2
+    depends_on:
+      - redis-master
+    networks:
+      - redis-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis哨兵1
+  redis-sentinel-1:
+    image: redis:7-alpine
+    container_name: redis-sentinel-1
+    restart: unless-stopped
+    command: redis-sentinel /etc/redis/sentinel.conf
+    ports:
+      - "26379:26379"
+    volumes:
+      - ./redis/redis-sentinel.conf:/etc/redis/sentinel.conf
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - SENTINEL_ANNOUNCE_IP=redis-sentinel-1
+      - SENTINEL_ANNOUNCE_PORT=26379
+    depends_on:
+      - redis-master
+    networks:
+      - redis-network
+
+  # Redis哨兵2
+  redis-sentinel-2:
+    image: redis:7-alpine
+    container_name: redis-sentinel-2
+    restart: unless-stopped
+    command: redis-sentinel /etc/redis/sentinel.conf
+    ports:
+      - "26380:26379"
+    volumes:
+      - ./redis/redis-sentinel.conf:/etc/redis/sentinel.conf
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - SENTINEL_ANNOUNCE_IP=redis-sentinel-2
+      - SENTINEL_ANNOUNCE_PORT=26380
+    depends_on:
+      - redis-master
+    networks:
+      - redis-network
+
+  # Redis哨兵3
+  redis-sentinel-3:
+    image: redis:7-alpine
+    container_name: redis-sentinel-3
+    restart: unless-stopped
+    command: redis-sentinel /etc/redis/sentinel.conf
+    ports:
+      - "26381:26379"
+    volumes:
+      - ./redis/redis-sentinel.conf:/etc/redis/sentinel.conf
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - SENTINEL_ANNOUNCE_IP=redis-sentinel-3
+      - SENTINEL_ANNOUNCE_PORT=26381
+    depends_on:
+      - redis-master
+    networks:
+      - redis-network
+
+  # Redis集群管理器
+  redis-trib:
+    image: redis:7-alpine
+    container_name: redis-trib
+    command: >
+      sh -c "
+        echo 'Waiting for Redis nodes to start...' &&
+        sleep 10 &&
+        echo 'Creating Redis cluster...' &&
+        redis-cli --cluster create \
+          redis-master:6379 \
+          redis-slave-1:6379 \
+          redis-slave-2:6379 \
+          --cluster-replicas 1 \
+          -a ${REDIS_PASSWORD} \
+          --cluster-yes
+      "
+    depends_on:
+      - redis-master
+      - redis-slave-1
+      - redis-slave-2
+    networks:
+      - redis-network
+
+  # Redis导出器（监控）
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: redis-exporter
+    restart: unless-stopped
+    ports:
+      - "9121:9121"
+    environment:
+      - REDIS_ADDR=redis://redis-master:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - REDIS_EXPORTER_LOG_FORMAT=txt
+    depends_on:
+      - redis-master
+    networks:
+      - redis-network
+
+volumes:
+  redis-master-data:
+    driver: local
+  redis-slave-1-data:
+    driver: local
+  redis-slave-2-data:
+    driver: local
+
+networks:
+  redis-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16

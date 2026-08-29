@@ -1,0 +1,104 @@
+{
+  "base": "http://localhost:3000",
+  "concurrency": 50,
+  "durationMs": 10000,
+  "generatedAt": "2026-08-19T18:43:15.671Z",
+  "results": [
+    {
+      "name": "login",
+      "path": "/api/auth/login",
+      "concurrency": 50,
+      "durationMs": 11698,
+      "requests": 339,
+      "rps": 28.98,
+      "errorRate": 0,
+      "p50": 1691,
+      "p95": 1784,
+      "p99": 1833,
+      "max": 1869,
+      "statusCodes": {
+        "200": 339
+      }
+    },
+    {
+      "name": "projects",
+      "path": "/api/projects",
+      "concurrency": 50,
+      "durationMs": 10117,
+      "requests": 3333,
+      "rps": 329.45,
+      "errorRate": 0,
+      "p50": 149,
+      "p95": 179,
+      "p99": 195,
+      "max": 231,
+      "statusCodes": {
+        "200": 3333
+      }
+    },
+    {
+      "name": "project-tree",
+      "path": "/api/projects/cmszmbz47007iu75c7mdm10rx/tree",
+      "concurrency": 50,
+      "durationMs": 10042,
+      "requests": 3022,
+      "rps": 300.94,
+      "errorRate": 0,
+      "p50": 167,
+      "p95": 183,
+      "p99": 195,
+      "max": 414,
+      "statusCodes": {
+        "200": 3022
+      }
+    },
+    {
+      "name": "tasks",
+      "path": "/api/tasks?projectId=cmszmbz47007iu75c7mdm10rx",
+      "concurrency": 50,
+      "durationMs": 10071,
+      "requests": 4388,
+      "rps": 435.71,
+      "errorRate": 0,
+      "p50": 114,
+      "p95": 128,
+      "p99": 135,
+      "max": 157,
+      "statusCodes": {
+        "200": 4388
+      }
+    },
+    {
+      "name": "todos",
+      "path": "/api/todos",
+      "concurrency": 50,
+      "durationMs": 10042,
+      "requests": 5450,
+      "rps": 542.72,
+      "errorRate": 0,
+      "p50": 92,
+      "p95": 102,
+      "p99": 111,
+      "max": 140,
+      "statusCodes": {
+        "200": 5450
+      }
+    },
+    {
+      "name": "notifications",
+      "path": "/api/notifications",
+      "concurrency": 50,
+      "durationMs": 10069,
+      "requests": 5404,
+      "rps": 536.7,
+      "errorRate": 0,
+      "p50": 93,
+      "p95": 105,
+      "p99": 111,
+      "max": 127,
+      "statusCodes": {
+        "200": 5404
+      }
+    }
+  ]
+}
