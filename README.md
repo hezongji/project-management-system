@@ -26,6 +26,16 @@
 - 附件自动归档：项目群附件自动入项目文件夹，普通聊天附件入「聊天记录」共享文件夹
 - 群公告、消息免打扰、会话置顶/删除、未读聚合
 
+## 界面预览
+
+| 工作台 | 文件管理（项目网盘） |
+|:---:|:---:|
+| ![工作台](docs/screenshots/dashboard.png) | ![文件管理](docs/screenshots/files.png) |
+
+| IM 聊天（网页端） | 移动 App（Android） |
+|:---:|:---:|
+| ![IM 聊天](docs/screenshots/im.png) | <img src="docs/screenshots/mobile-app.png" width="220" alt="移动 App"> |
+
 ## 技术栈
 
 | 层 | 技术 |
