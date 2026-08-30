@@ -23,6 +23,8 @@ export interface CatalogNode {
   phaseCode: string | null
   order: number
   remark: string | null
+  kind: 'SYSTEM' | 'USER'   // 网盘化：系统目录受保护
+  path: string              // 网盘化：物化路径
   requirementCount: number
   requirements: { id: string; name: string; status: string }[]
   children: CatalogNode[]
@@ -236,4 +238,119 @@ export interface ArchiveBlocker {
   name: string
   status: FileStatus
   owner: string | null
+}
+
+// ═════════════════════════ 网盘化（20260830-drive-war W3）═════════════════════════
+
+/** 目录树节点（网盘化扩展：kind/path） */
+export interface DriveCatalogNode {
+  id: string
+  projectId: string
+  parentId: string | null
+  name: string
+  phaseCode: string | null
+  order: number
+  remark: string | null
+  kind: 'SYSTEM' | 'USER'
+  path: string
+  requirementCount: number
+  requirements: { id: string; name: string; status: string }[]
+  children: DriveCatalogNode[]
+}
+
+/** 网盘目录视图（GET /api/drive/list） */
+export interface DriveListData {
+  folder: { id: string; name: string; kind: 'SYSTEM' | 'USER'; breadcrumb: { id: string; name: string; kind: string }[] } | null
+  project: { id: string; name: string; isArchived: boolean }
+  folders: {
+    id: string
+    name: string
+    kind: 'SYSTEM' | 'USER'
+    order: number
+    remark: string | null
+    requirementCount: number
+    childrenCount: number
+  }[]
+  items: Array<
+    | {
+        type: 'file'
+        id: string
+        name: string
+        size: number
+        mimeType: string
+        version: number
+        createdAt: string
+        uploader: string
+        uploaderId: string
+      }
+    | {
+        type: 'requirement'
+        id: string
+        name: string
+        code: string | null
+        status: string
+        scope: string
+        required: boolean
+        dueDate: string | null
+        phaseCode: string | null
+        owner: string
+        fileCount: number
+      }
+  >
+  pagination: { page: number; pageSize: number; total: number; totalPages: number }
+  perms: { canUpload: boolean; canEdit: boolean; canDelete: boolean; canDownload: boolean }
+  isSystemFolder: boolean
+}
+
+/** 回收站视图（GET /api/drive/list?view=recycle） */
+export interface DriveRecycleData {
+  files: {
+    id: string
+    name: string
+    size: number
+    mimeType: string
+    version: number
+    folderName: string
+    folderId: string | null
+    deletedAt: string
+    daysLeft: number
+    deletedByMe: boolean
+    uploader: string
+  }[]
+  folders: {
+    id: string
+    name: string
+    kind: 'SYSTEM' | 'USER'
+    path: string
+    deletedAt: string
+    daysLeft: number
+    deletedByMe: boolean
+  }[]
+}
+
+/** 全局搜索（GET /api/files/search） */
+export interface DriveSearchData {
+  q: string
+  items: {
+    id: string
+    name: string
+    version: number
+    size: number
+    mimeType: string
+    createdAt: string
+    isRequirement: boolean
+    requirementId: string | null
+    projectId: string
+    projectName: string
+    folderId: string | null
+    folderPath: string
+  }[]
+  total: number
+}
+
+/** 版本列表（GET /api/files/:id/versions） */
+export interface DriveVersionsData {
+  items: { id: string; name: string; originalName: string; version: number; size: number; mimeType: string; createdAt: string; uploadedBy: { name: string } | null }[]
+  currentId: string
+  kind: 'free' | 'requirement'
 }

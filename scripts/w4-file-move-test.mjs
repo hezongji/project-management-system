@@ -44,11 +44,13 @@ const list1 = await rList1.json()
 ok('GET /api/files 列出 A1 计划外文件', rList1.status === 200 && (list1.data?.items ?? []).some((f) => f.id === fileA.id), `HTTP ${rList1.status}`)
 
 // ── 3. move 到 A2 → 成功 ──
+// ★ 20260830-drive-war 语义变更：移动改 DB-only（folderId 权威），storagePath 物理路径不变（spec §3.9 零搬迁）
 const rMove = await fetch(`${BASE}/api/files/${fileA.id}/move`, { method: 'PATCH', headers: H, body: JSON.stringify({ catalogId: CAT_A2 }) })
 const jMove = await rMove.json()
 ok('move A1→A2 成功', rMove.status === 200, `HTTP ${rMove.status} ${JSON.stringify(jMove?.message ?? jMove?.error?.message ?? '')}`)
 const movedPath = jMove?.data?.file?.storagePath
-ok('storagePath 已更新为 A2 前缀', typeof movedPath === 'string' && movedPath.startsWith(`${PROJ_A}/${CAT_A2}/`), movedPath)
+ok('storagePath 不变（物理解耦，spec §3.9）', typeof movedPath === 'string' && movedPath.startsWith(`${PROJ_A}/${CAT_A1}/`), movedPath)
+ok('folderId 已指向 A2（逻辑目录权威）', jMove?.data?.file?.folderId === CAT_A2, jMove?.data?.file?.folderId)
 
 // ── 4. 移动后旧目录列表为空、新目录可见 ──
 const rListOld = await fetch(`${BASE}/api/files?projectId=${PROJ_A}&catalogId=${CAT_A1}`, { headers: H })

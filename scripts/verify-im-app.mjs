@@ -3,12 +3,12 @@
 // 断言链：下载页 200 → APK 直出 MIME/大小 → /im 页面 200 → 登录闭环 200
 //   → socket 握手鉴权闭环（无 token 拒连 / 带 token 可连）
 // 用法: node scripts/verify-im-app.mjs            # 默认线上
-//       BASE=https://YOUR-PM-DOMAIN node scripts/verify-im-app.mjs
+//       BASE=https://pm.hezongji.cn node scripts/verify-im-app.mjs
 import { io } from 'socket.io-client'
 import jwt from 'jsonwebtoken'
 import fs from 'fs'
 
-const BASE = (process.env.BASE || 'https://YOUR-PM-DOMAIN').replace(/\/+$/, '')
+const BASE = (process.env.BASE || 'https://pm.hezongji.cn').replace(/\/+$/, '')
 const APK_PATH = process.env.APK || '/downloads/pm-chat-1.6.0.apk'
 
 const env = fs.readFileSync('/opt/pm-app/.env', 'utf8')

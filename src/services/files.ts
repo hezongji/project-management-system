@@ -9,6 +9,10 @@ import type {
   AdhocFileItem,
   CatalogNode,
   CatalogTreeData,
+  DriveListData,
+  DriveRecycleData,
+  DriveSearchData,
+  DriveVersionsData,
   FileMatrixData,
   FileRequirementItem,
   MyDeliverableListData,
@@ -132,6 +136,68 @@ export const FilesService = {
     ApiService.get<{ members: ProjectMemberOption[] }>(`/projects/${projectId}/tree`).then(
       (r) => unwrap(r).members ?? [],
     ),
+}
+
+// ───────────────────── 网盘化（20260830-drive-war W3）─────────────────────
+
+export const DriveService = {
+  /** 目录视图：文件夹+自由文件+交付条目合并列表 */
+  getList: (params: { projectId: string; folderId?: string; page?: number; pageSize?: number }) => {
+    const search = new URLSearchParams()
+    search.set('projectId', params.projectId)
+    if (params.folderId) search.set('folderId', params.folderId)
+    search.set('page', String(params.page ?? 1))
+    search.set('pageSize', String(params.pageSize ?? 50))
+    return ApiService.get<DriveListData>(`/drive/list?${search.toString()}`).then(unwrap)
+  },
+
+  /** 回收站视图 */
+  getRecycle: (projectId: string) =>
+    ApiService.get<DriveRecycleData>(`/drive/list?projectId=${projectId}&view=recycle`).then(unwrap),
+
+  /** 批量操作：delete(软删)/restore/purge */
+  batch: (input: { fileIds?: string[]; folderIds?: string[]; action: 'delete' | 'restore' | 'purge' }) =>
+    ApiService.post<{ deleted: number; restored: number; purged: number; errors: { id: string; reason: string }[] }>(
+      '/files/batch',
+      input,
+    ).then(unwrap),
+
+  /** 上传（多文件循环上传，folderId 挂目录；同名自动版本合并） */
+  uploadToFolder: (folderId: string, files: File[]) =>
+    Promise.all(
+      files.map((f) => {
+        const form = new FormData()
+        form.append('file', f)
+        form.append('folderId', folderId)
+        return ApiService.postForm<{ file: { id: string; version: number } }>('/files/upload', form).then(unwrap)
+      }),
+    ),
+
+  /** 重命名（自由文件） */
+  renameFile: (fileId: string, name: string) =>
+    ApiService.patch(`/files/${fileId}`, { name }).then(unwrap),
+
+  /** 全局搜索 */
+  search: (q: string) =>
+    ApiService.get<DriveSearchData>(`/files/search?q=${encodeURIComponent(q)}`).then(unwrap),
+
+  /** 版本列表 */
+  getVersions: (fileId: string) =>
+    ApiService.get<DriveVersionsData>(`/files/${fileId}/versions`).then(unwrap),
+
+  /** 批量下载 zip（blob → 触发保存） */
+  batchDownload: async (ids: string[]): Promise<void> => {
+    const { api } = await import('./api-instance')
+    const response = await api.get(`/files/batch-download?ids=${ids.join(',')}`, { responseType: 'blob' })
+    const url = URL.createObjectURL(response.data as Blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `文件打包下载-${new Date().toISOString().slice(0, 10)}.zip`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  },
 }
 
 /** 展平目录树为可选目录列表（建条目下拉用，带层级缩进名） */

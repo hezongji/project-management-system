@@ -1,11 +1,14 @@
 /**
- * POST /api/files/upload —— 依据《开发文档-项目管理系统重构》§7.7
+ * POST /api/files/upload —— 依据《开发文档-项目管理系统重构》§7.7 + 网盘化（20260830-drive-war W2）
  *
- * 项目 upload 权限，计划外临时文件（挂目录 catalogId、不挂条目 requirementId=null）。
- * multipart(file + catalogId) → 新 File 记录（requirementId=null，version=1）。
+ * 项目 upload 权限，计划外临时文件（挂目录、不挂条目 requirementId=null）。
+ * multipart(file + folderId|catalogId) → 新 File 记录（requirementId=null，version=1）。
  *
- * 与 submit 的区别：不递增版本、不改条目状态、不通知 reviewer，
- * 仅校验大小/配额/mimeType/sha256 后落盘并写 FileAccessLog(UPLOAD)。
+ * 网盘化扩展：
+ *  - 入参 folderId（与 catalogId 等价同源，folderId 优先）
+ *  - SYSTEM 目录（交付计划区）自由上传仅 MANAGER+/ADMIN（条目流程上传走 submit，不受影响）
+ *  - 同目录同名活跃文件 → 新版本（version+1，spec D4），避免 Windows 式副本污染
+ *  - File 行写入 folderId（逻辑目录权威列，storagePath 物理路径解耦）
  */
 
 import { NextRequest } from 'next/server'
@@ -13,6 +16,7 @@ import { prisma } from '@/lib/prisma'
 import { apiHandler, ok, ApiError, requireAuth } from '@/lib/api-helpers'
 import { requireCan } from '@/lib/permission'
 import { isChatArchiveProject } from '@/lib/chat-archive'
+import { getLiveFolder, assertFolderUsableAsTarget, latestActiveVersion } from '@/lib/drive'
 import {
   fileConfig,
   isAllowedMime,
@@ -36,21 +40,23 @@ export const POST = apiHandler(async (request: NextRequest) => {
   if (!isFileLike) {
     throw ApiError.badRequest('缺少 multipart 字段 file')
   }
-  const catalogId = String(formData.get('catalogId') ?? '').trim()
-  if (!catalogId) {
-    throw ApiError.badRequest('缺少 catalogId（计划外文件需挂载到某个目录）')
+  // 网盘化：folderId 优先，兼容旧 catalogId 入参（IM App 等存量客户端）
+  const folderId = String(formData.get('folderId') ?? formData.get('catalogId') ?? '').trim()
+  if (!folderId) {
+    throw ApiError.badRequest('缺少 folderId（网盘文件需挂载到某个目录）')
   }
 
-  const catalog = await prisma.fileCatalog.findUnique({
-    where: { id: catalogId },
-    select: { id: true, projectId: true },
-  })
-  if (!catalog) throw ApiError.notFound('目录不存在')
+  const catalog = await getLiveFolder(folderId)
 
   // 聊天记录项目（内部共享文件池）：登录即可传，不受项目成员约束
   const isArchive = await isChatArchiveProject(catalog.projectId)
   if (!isArchive) {
-    await requireCan(user.userId, 'upload', { type: 'PROJECT', id: catalog.projectId })
+    // 网盘化：文件夹级 upload（MEMBER/MANAGER 基线含 upload；VIEWER 只读；ACL 可追加）
+    await requireCan(user.userId, 'upload', { type: 'FILE_FOLDER', id: catalog.id })
+    // SYSTEM 目录（交付计划区）自由上传仅 MANAGER+（应急通道）；条目流程上传走 submit 不受影响
+    if (catalog.kind === 'SYSTEM') {
+      await assertFolderUsableAsTarget(user.userId, catalog)
+    }
   }
 
   const project = await prisma.project.findUnique({
@@ -84,6 +90,10 @@ export const POST = apiHandler(async (request: NextRequest) => {
 
   const checksum = sha256(buffer)
 
+  // 同目录同名活跃自由文件 → 新版本（spec D4）
+  const existing = await latestActiveVersion(catalog.id, originalName)
+  const nextVersion = (existing?.version ?? 0) + 1
+
   let absolutePath: string | null = null
   try {
     const written = await writeUploadFile(
@@ -99,13 +109,14 @@ export const POST = apiHandler(async (request: NextRequest) => {
       data: {
         requirementId: null,
         projectId: catalog.projectId,
+        folderId: catalog.id, // ★ 网盘化：逻辑目录权威列
         name: originalName,
         originalName,
         storagePath: written.storagePath,
         size: buffer.byteLength,
         mimeType,
         checksum,
-        version: 1,
+        version: nextVersion,
         uploadedById: user.userId,
       },
     })
@@ -124,10 +135,11 @@ export const POST = apiHandler(async (request: NextRequest) => {
           mimeType: file.mimeType,
           checksum: file.checksum,
           version: file.version,
+          folderId: file.folderId,
           createdAt: file.createdAt,
         },
       },
-      '计划外文件上传成功',
+      nextVersion > 1 ? `同名文件已合并为新版本 v${nextVersion}` : '文件上传成功',
       201,
     )
   } catch (e) {

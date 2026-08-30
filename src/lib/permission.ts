@@ -233,6 +233,8 @@ interface ResolvedResource {
   /** TASK 专属 */
   task?: { phaseId: string | null; assigneeId: string | null }
   phase?: { ownerId: string | null }
+  /** FILE_FOLDER 专属（网盘化 20260830）：物化路径供祖先链 ACL 并集 */
+  folder?: { path: string }
 }
 
 async function resolveResource(res: Res): Promise<ResolvedResource | null> {
@@ -266,9 +268,10 @@ async function resolveResource(res: Res): Promise<ResolvedResource | null> {
     case 'FILE_FOLDER': {
       const catalog = await prisma.fileCatalog.findUnique({
         where: { id: res.id },
-        select: { projectId: true },
+        select: { projectId: true, path: true },
       })
-      return catalog ? { projectId: catalog.projectId } : null
+      if (!catalog) return null
+      return { projectId: catalog.projectId, folder: { path: catalog.path } }
     }
     case 'FILE_REQ': {
       const req = await prisma.fileRequirement.findUnique({
@@ -399,6 +402,12 @@ async function computePerms(
     grant(perms, VIEW_ONLY) // MEMBER/VIEWER → view（所有项目成员底线）
     if (member.role === 'MANAGER') grant(perms, ['edit', 'assign'])
     if (member.role === 'OWNER') grant(perms, ACTIONS) // 项目内全允许
+    // ── 网盘化（20260830-drive-war）：FILE_FOLDER 基线扩展 ──
+    // 目录是容器不是交付物：MEMBER/MANAGER 需能建目录/传文件/改名/移动/下载（intent C1 用户目录自由），
+    // delete（整树入回收站）留给 MANAGER/OWNER；VIEWER 仍只读。（MANAGER 项目基线本无 upload，此处补齐）
+    if (res.type === 'FILE_FOLDER' && (member.role === 'MEMBER' || member.role === 'MANAGER')) {
+      grant(perms, ['upload', 'edit', 'download'])
+    }
   }
 
   // 阶段负责人 / 任务负责人（与成员身份可叠加）
@@ -439,8 +448,13 @@ async function computePerms(
   }
 
   // ── 步骤 3：资源 ACL 合并（∪ 追加授权；不设减权）──
+  // 网盘化：FILE_FOLDER 沿祖先链并集（给部门/人授权父目录 → 全部子目录生效，spec §3.2）
+  const aclResourceIds =
+    res.type === 'FILE_FOLDER' && resolved.folder && resolved.folder.path
+      ? resolved.folder.path.split('/').filter(Boolean)
+      : [res.id]
   const acls = await prisma.resourcePermission.findMany({
-    where: { resourceType: res.type, resourceId: res.id },
+    where: { resourceType: res.type, resourceId: { in: aclResourceIds } },
     select: { principalType: true, principalId: true, perms: true },
   })
   for (const acl of acls) {

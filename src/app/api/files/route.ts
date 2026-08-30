@@ -4,8 +4,8 @@
  * 按项目+目录列出 requirementId=null 的计划外文件，供 PC 端「临时文件」管理：
  *   查询：?projectId=&catalogId=（必填）
  *   权限：requireCan('view', PROJECT)
- *   实现：File 无 catalogId 列（storagePath 前缀即目录归属），where 用
- *   storagePath startsWith `{projectId}/{catalogId}/` 前缀匹配，不加列。
+ *   实现（网盘化 20260830-drive-war）：目录归属改按 File.folderId 权威列查询
+ *   （移动已改 DB-only，storagePath 物理路径不再变更，前缀匹配会漏移入/误含移出文件）。
  */
 
 import { NextRequest } from 'next/server'
@@ -38,7 +38,9 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const items = await prisma.file.findMany({
     where: {
       requirementId: null,
-      storagePath: { startsWith: `${projectId}/${catalogId}/` },
+      projectId,
+      folderId: catalogId, // ★ 网盘化：逻辑目录权威列（软删过滤）
+      deletedAt: null,
     },
     select: {
       id: true,

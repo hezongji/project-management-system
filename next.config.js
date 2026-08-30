@@ -1,7 +1,9 @@
-/** @type {import('next').NextConfig} */
+/** @type {import('next').BatchAddOptions | import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
+  // 网盘化（20260830-drive-war）：zip 流式打包依赖为 CJS callable，禁止 webpack 打包改写 require 语义
+  serverExternalPackages: ['archiver'],
   images: {
     remotePatterns: [
       {

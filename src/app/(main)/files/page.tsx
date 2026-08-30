@@ -34,6 +34,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { TablePagination } from '@/components/ui/data-table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,7 @@ import {
 
 import { CatalogTree } from '@/components/files/catalog-tree'
 import { CatalogDialog, type CatalogFormValue } from '@/components/files/catalog-dialog'
+import { DriveExplorer } from '@/components/files/drive-explorer'
 import { RequirementFormDialog } from '@/components/files/requirement-form-dialog'
 import { RequirementTable } from '@/components/files/requirement-table'
 import { RequirementDetailDrawer } from '@/components/files/requirement-detail-drawer'
@@ -213,6 +215,25 @@ function FilesPageInner() {
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null)
   // ★ AI 解读（S4）：条目行「解读」按钮 → 弹窗调 /api/ai/explain-file
   const [explainItem, setExplainItem] = useState<FileRequirementItem | null>(null)
+
+  // ── 网盘化（20260830-drive-war W3）：双 Tab（交付计划/项目网盘，spec D7）──
+  const [tab, setTab] = useState<'plan' | 'drive'>('plan')
+  // 网盘 Tab 点条目行 → 跳回交付计划 Tab 并打开详情抽屉
+  const handleOpenRequirementFromDrive = (requirementId: string) => {
+    setTab('plan')
+    if (!projectId) return
+    FilesService.getRequirement(projectId, requirementId)
+      .then((item) => {
+        if (item) {
+          setSelectedCatalogId(item.catalogId ?? null)
+          setDetailItem(item)
+          setSelectedRowId(item.id)
+        }
+      })
+      .catch(() => {
+        toast({ title: '条目详情打开失败，请稍后再试' })
+      })
+  }
 
   // ── 跨页定位（useFocusHighlight 约定）：?requirementId=xx → 清筛选 → 分块查到所在页 → 行高亮闪烁 ──
   const { focusId: focusReqId, srcLabel, clearFocus } = useFocusHighlight(['requirementId'])
@@ -478,6 +499,14 @@ function FilesPageInner() {
           <div className="mt-2 text-xs">若看不到任何项目，请联系项目经理将你加入项目</div>
         </div>
       ) : (
+        <Tabs value={tab} onValueChange={(v) => setTab(v as 'plan' | 'drive')}>
+          <TabsList>
+            <TabsTrigger value="plan">交付计划</TabsTrigger>
+            <TabsTrigger value="drive">📁 项目网盘</TabsTrigger>
+          </TabsList>
+
+          {/* ── Tab 1：交付计划（原有视图原样保留，spec D7 兜底）── */}
+          <TabsContent value="plan" className="mt-4">
         <div className="flex flex-col gap-4 lg:flex-row">
           {/* 左：目录树 */}
           <aside className="w-full shrink-0 lg:w-64 xl:w-72">
@@ -632,6 +661,15 @@ function FilesPageInner() {
             )}
           </div>
         </div>
+          </TabsContent>
+
+          {/* ── Tab 2：项目网盘（新视图，spec §3.10）── */}
+          <TabsContent value="drive" className="mt-4">
+            <div className="h-[calc(100vh-230px)] min-h-[480px]">
+              <DriveExplorer projectId={projectId} onOpenRequirement={handleOpenRequirementFromDrive} />
+            </div>
+          </TabsContent>
+        </Tabs>
       )}
 
       {/* 弹窗 */}

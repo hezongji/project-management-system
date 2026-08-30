@@ -415,8 +415,20 @@ model FileCatalog {                                 // 目录树
   phaseCode String?                                 // 关联 PH01
   order     Int     @default(0)
   remark    String?                                 // 用途说明
+  // ── 网盘化（20260830-drive-war）：一棵树，阶段目录=受保护系统文件夹 ──
+  kind        FolderKind @default(USER)             // SYSTEM=阶段/系统目录(受保护) USER=用户自建
+  path        String    @default("")                // 物化路径 '/anc1/anc2/self' 祖先链判定/整树软删/面包屑
+  deletedAt   DateTime?                             // 软删（回收站）
+  deletedById String?                               // 删除人（审计，纯文本不建FK）
+  files     File[]
   requirements FileRequirement[]
   @@index([projectId, parentId])
+  @@index([projectId, deletedAt])
+}
+
+enum FolderKind {
+  SYSTEM
+  USER
 }
 
 enum FileScope    {
@@ -466,6 +478,8 @@ model File {
   requirement   FileRequirement? @relation(fields: [requirementId], references: [id])
   projectId     String
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  folderId      String?                         // ★ 网盘化：显式目录外键（storagePath 物理路径解耦，移动只改它）
+  folder        FileCatalog? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   name          String                             // 显示名（含版本）
   originalName  String
   storagePath   String                             // {FILE_ROOT}/{projectId}/{catalogId}/{uuid}.{ext}
@@ -476,8 +490,13 @@ model File {
   uploadedById  String
   uploadedBy    User     @relation(fields: [uploadedById], references: [id])
   createdAt     DateTime @default(now())
+  // ── 网盘化：软删（回收站）──
+  deletedAt   DateTime?
+  deletedById String?
   accessLogs    FileAccessLog[]
   @@index([projectId, requirementId])
+  @@index([projectId, folderId, deletedAt])      // 网盘列表主查询
+  @@index([folderId, originalName])              // 同名版本合并判定
 }
 
 model FileAccessLog {
@@ -498,6 +517,13 @@ enum FileAccessAction {
   REJECT
   OBSOLETE
   MOVE
+  // ── 网盘化（20260830-drive-war）──
+  CREATE    // 目录创建
+  RENAME    // 目录/文件重命名
+  DELETE    // 软删（回收站）
+  RESTORE   // 恢复
+  PURGE     // 彻底删除
+  COPY
 }
 
 model ResourcePermission {
