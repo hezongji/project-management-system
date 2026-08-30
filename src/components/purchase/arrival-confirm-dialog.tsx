@@ -12,13 +12,12 @@ import * as React from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, PackageCheck, MapPin, UserRound } from 'lucide-react'
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/mobile/responsive-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -196,8 +195,8 @@ export function ArrivalConfirmDialog({
   const members = memberData?.members ?? []
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PackageCheck className="h-4 w-4 text-emerald-600" /> 到货清点 · {orderCode}
@@ -367,7 +366,7 @@ export function ArrivalConfirmDialog({
             提交{autoConfirm ? '并确认收货' : '清点'}
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   )
 }

@@ -24,6 +24,7 @@ import {
   Users,
   ListTree,
   Network,
+  SlidersHorizontal,
   PowerOff,
   ShieldAlert,
 } from 'lucide-react'
@@ -58,6 +59,9 @@ import { AdminService } from '@/services/admin'
 import { ApiError } from '@/services/api'
 import { downloadUsersTemplate, exportUsers } from '@/lib/excel-templates'
 import { useAuthStore } from '@/store/auth'
+import { MobileSegmentedTabs } from '@/components/mobile/segmented-tabs'
+import { useIsMobile } from '@/hooks/use-is-mobile'
+import { Sheet } from '@/components/ui/sheet'
 import type { DeptNode } from '@/lib/org-tree'
 import { cn } from '@/lib/utils'
 import { globalConfirm } from '@/lib/global-confirm'
@@ -88,7 +92,7 @@ function DeptTreeItem({
     <div>
       <div
         className={cn(
-          'group flex cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60',
+          'group flex min-h-11 cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-sm hover:bg-muted/60 active:bg-muted/60',
           selected && 'bg-primary/10 font-medium text-primary'
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
@@ -96,18 +100,19 @@ function DeptTreeItem({
       >
         {node.children.length > 0 ? (
           <button
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-black/5"
+            aria-label={open ? '折叠' : '展开'}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded hover:bg-black/5 active:bg-black/10"
             onClick={(e) => {
               e.stopPropagation()
               setOpen(!open)
             }}
           >
             <ChevronRight
-              className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-90')}
+              className={cn('h-4 w-4 transition-transform', open && 'rotate-90')}
             />
           </button>
         ) : (
-          <span className="w-5 shrink-0" />
+          <span className="w-8 shrink-0" />
         )}
         <span className="truncate">{node.name}</span>
         {node.manager && (
@@ -119,26 +124,26 @@ function DeptTreeItem({
           {node.memberCount}
         </span>
         {isAdmin && (
-          <span className="ml-0.5 hidden shrink-0 items-center gap-0.5 group-hover:flex">
+          <span className="ml-0.5 flex shrink-0 items-center gap-0.5 lg:hidden lg:group-hover:flex">
             <button
-              className="rounded p-0.5 hover:bg-black/10"
+              className="flex h-8 w-8 items-center justify-center rounded active:bg-black/10 lg:h-7 lg:w-7"
               title="编辑部门"
               onClick={(e) => {
                 e.stopPropagation()
                 onEdit(node)
               }}
             >
-              <Pencil className="h-3 w-3" />
+              <Pencil className="h-4 w-4" />
             </button>
             <button
-              className="rounded p-0.5 hover:bg-black/10"
+              className="flex h-8 w-8 items-center justify-center rounded active:bg-black/10 lg:h-7 lg:w-7"
               title="删除部门（需空部门）"
               onClick={(e) => {
                 e.stopPropagation()
                 onDelete(node)
               }}
             >
-              <Trash2 className="h-3 w-3 text-red-500" />
+              <Trash2 className="h-4 w-4 text-red-500" />
             </button>
           </span>
         )}
@@ -210,25 +215,25 @@ function MemberCard({
         {isAdmin && (
           <div className="flex shrink-0 flex-col items-center gap-0.5 opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100">
             <button
-              className="rounded p-1 hover:bg-black/10"
+              className="flex h-8 w-8 items-center justify-center rounded hover:bg-black/10 active:bg-black/10 lg:h-7 lg:w-7"
               title="编辑成员"
               onClick={() => onEdit(m)}
             >
-              <Pencil className="h-3.5 w-3.5" />
+              <Pencil className="h-4 w-4 lg:h-3.5 lg:w-3.5" />
             </button>
             <button
-              className="rounded p-1 hover:bg-black/10"
+              className="flex h-8 w-8 items-center justify-center rounded hover:bg-black/10 active:bg-black/10 lg:h-7 lg:w-7"
               title="停用成员"
               onClick={() => onDeactivate(m)}
             >
-              <PowerOff className="h-3.5 w-3.5 text-amber-500" />
+              <PowerOff className="h-4 w-4 text-amber-500 lg:h-3.5 lg:w-3.5" />
             </button>
             <button
-              className="rounded p-1 hover:bg-black/10"
+              className="flex h-8 w-8 items-center justify-center rounded hover:bg-black/10 active:bg-black/10 lg:h-7 lg:w-7"
               title="删除成员（有业务引用时不可删）"
               onClick={() => onDelete(m)}
             >
-              <Trash2 className="h-3.5 w-3.5 text-red-500" />
+              <Trash2 className="h-4 w-4 text-red-500 lg:h-3.5 lg:w-3.5" />
             </button>
           </div>
         )}
@@ -265,23 +270,52 @@ export default function OrganizationPage() {
       </Card>
     )
   }
+  // S3-W5：移动端 MobileSegmentedTabs 切换列表/结构图；桌面原 Tabs 不动
+  const isMobile = useIsMobile()
+  const [view, setView] = React.useState<'list' | 'chart'>('list')
+
   return (
-    <Tabs defaultValue="list">
-      <TabsList>
-        <TabsTrigger value="list">
-          <ListTree className="mr-1.5 h-4 w-4" /> 部门列表
-        </TabsTrigger>
-        <TabsTrigger value="chart">
-          <Network className="mr-1.5 h-4 w-4" /> 架构图
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="list">
-        <DeptListView />
-      </TabsContent>
-      <TabsContent value="chart">
-        <OrgChartView />
-      </TabsContent>
-    </Tabs>
+    <div className="space-y-4">
+      {isMobile ? (
+        <MobileSegmentedTabs
+          tabs={[
+            { key: 'list', label: '部门列表' },
+            { key: 'chart', label: '架构图' },
+          ]}
+          active={view}
+          onChange={(k) => setView(k as 'list' | 'chart')}
+        />
+      ) : null}
+      {isMobile ? (
+        view === 'list' ? (
+          <DeptListView />
+        ) : (
+          <div
+            className="overflow-auto rounded-lg border bg-card"
+            style={{ touchAction: 'pinch-zoom' }}
+          >
+            <OrgChartView />
+          </div>
+        )
+      ) : (
+        <Tabs value={view} onValueChange={(v) => setView(v as 'list' | 'chart')}>
+          <TabsList>
+            <TabsTrigger value="list">
+              <ListTree className="mr-1.5 h-4 w-4" /> 部门列表
+            </TabsTrigger>
+            <TabsTrigger value="chart">
+              <Network className="mr-1.5 h-4 w-4" /> 架构图
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="list">
+            <DeptListView />
+          </TabsContent>
+          <TabsContent value="chart">
+            <OrgChartView />
+          </TabsContent>
+        </Tabs>
+      )}
+    </div>
   )
 }
 
@@ -301,6 +335,7 @@ function DeptListView() {
   const [selected, setSelected] = React.useState<DeptNode | null>(null)
   const [includeChildren, setIncludeChildren] = React.useState(true)
   const [formOpen, setFormOpen] = React.useState(false)
+  const [adminSheetOpen, setAdminSheetOpen] = React.useState(false)
   const [form, setForm] = React.useState<DeptForm>(EMPTY_FORM)
   const [saving, setSaving] = React.useState(false)
   const [importResult, setImportResult] = React.useState<ImportResult | null>(null)
@@ -566,41 +601,130 @@ function DeptListView() {
           </p>
         </div>
         {isAdmin && (
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={dryRun}
-                onChange={(e) => setDryRun(e.target.checked)}
-                className="h-3.5 w-3.5"
-              />
-              仅校验
-            </label>
-            <Button variant="outline" size="sm" onClick={() => downloadUsersTemplate()}>
-              <FileSpreadsheet className="mr-1 h-4 w-4" /> 下载模板
+          <>
+            {/* 桌面：原按钮排（≥lg 显示） */}
+            <div className="hidden flex-wrap items-center gap-2 lg:flex">
+              <label className="flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={dryRun}
+                  onChange={(e) => setDryRun(e.target.checked)}
+                  className="h-3.5 w-3.5"
+                />
+                仅校验
+              </label>
+              <Button variant="outline" size="sm" onClick={() => downloadUsersTemplate()}>
+                <FileSpreadsheet className="mr-1 h-4 w-4" /> 下载模板
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+                {importing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}
+                导入人员
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleExport}>
+                <Download className="mr-1 h-4 w-4" /> 导出花名册
+              </Button>
+              <Button variant="outline" size="sm" onClick={openCreateMember}>
+                <UserRoundPlus className="mr-1 h-4 w-4" /> 新增成员
+              </Button>
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="mr-1 h-4 w-4" /> 新增部门
+              </Button>
+            </div>
+
+            {/* 移动端：管理操作收底部 Sheet（<lg） */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="min-h-11 lg:hidden"
+              onClick={() => setAdminSheetOpen(true)}
+            >
+              <SlidersHorizontal className="mr-1 h-4 w-4" /> 管理
             </Button>
-            <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-              {importing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}
-              导入人员
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="mr-1 h-4 w-4" /> 导出花名册
-            </Button>
-            <Button variant="outline" size="sm" onClick={openCreateMember}>
-              <UserRoundPlus className="mr-1 h-4 w-4" /> 新增成员
-            </Button>
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="mr-1 h-4 w-4" /> 新增部门
-            </Button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={handleImportFile}
-            />
-          </div>
+            <Sheet open={adminSheetOpen} onClose={() => setAdminSheetOpen(false)} title="管理操作">
+              <div className="divide-y">
+                {[
+                  {
+                    key: 'dept',
+                    icon: <Plus className="h-4 w-4" />,
+                    label: '新增部门',
+                    onClick: () => {
+                      setAdminSheetOpen(false)
+                      openCreate()
+                    },
+                  },
+                  {
+                    key: 'member',
+                    icon: <UserRoundPlus className="h-4 w-4" />,
+                    label: '新增成员',
+                    onClick: () => {
+                      setAdminSheetOpen(false)
+                      openCreateMember()
+                    },
+                  },
+                  {
+                    key: 'export',
+                    icon: <Download className="h-4 w-4" />,
+                    label: '导出花名册',
+                    onClick: () => {
+                      setAdminSheetOpen(false)
+                      void handleExport()
+                    },
+                  },
+                  {
+                    key: 'import',
+                    icon: <Upload className="h-4 w-4" />,
+                    label: importing ? '导入中…' : '导入人员',
+                    onClick: () => {
+                      setAdminSheetOpen(false)
+                      fileRef.current?.click()
+                    },
+                  },
+                  {
+                    key: 'template',
+                    icon: <FileSpreadsheet className="h-4 w-4" />,
+                    label: '下载模板',
+                    onClick: () => {
+                      setAdminSheetOpen(false)
+                      void downloadUsersTemplate()
+                    },
+                  },
+                ].map((a) => (
+                  <button
+                    key={a.key}
+                    type="button"
+                    onClick={a.onClick}
+                    className="flex min-h-12 w-full items-center gap-3 px-1 py-3 text-left text-sm active:bg-muted/60"
+                  >
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-foreground">
+                      {a.icon}
+                    </span>
+                    {a.label}
+                  </button>
+                ))}
+                <label className="flex min-h-12 w-full cursor-pointer items-center gap-3 px-1 py-3 text-sm">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-foreground">
+                    <FileSpreadsheet className="h-4 w-4" />
+                  </span>
+                  仅校验（dryRun）
+                  <input
+                    type="checkbox"
+                    checked={dryRun}
+                    onChange={(e) => setDryRun(e.target.checked)}
+                    className="ml-auto h-5 w-5"
+                  />
+                </label>
+              </div>
+            </Sheet>
+          </>
         )}
+        {/* 唯一文件选择 input（桌面/移动共用，ref 单绑定） */}
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".xlsx,.xls"
+          className="hidden"
+          onChange={handleImportFile}
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">

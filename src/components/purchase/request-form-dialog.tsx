@@ -11,13 +11,12 @@ import * as React from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/mobile/responsive-dialog'
 import {
   Select,
   SelectContent,
@@ -153,8 +152,8 @@ export function RequestFormDialog({ open, onOpenChange, defaultProjectId = null,
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="max-h-[88vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>提采购需求</DialogTitle>
           <DialogDescription>根据工作需要填写采购清单，提交后由采购部统一处理</DialogDescription>
@@ -318,7 +317,7 @@ export function RequestFormDialog({ open, onOpenChange, defaultProjectId = null,
             提交给采购
           </Button>
         </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   )
 }

@@ -13,13 +13,12 @@ import * as XLSX from 'xlsx'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileDown, FileSpreadsheet, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react'
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/mobile/responsive-dialog'
 import {
   Select,
   SelectContent,
@@ -480,8 +479,8 @@ export function OrderFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="max-h-[88vh] max-w-3xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {isEdit ? '编辑采购订单（草稿）' : supplementary ? '追加采购' : '新建采购订单'}
@@ -792,8 +791,8 @@ export function OrderFormDialog({
         </DialogFooter>
 
         {/* AI 分解清单弹窗 */}
-        <Dialog open={aiOpen} onOpenChange={setAiOpen}>
-          <DialogContent className="max-w-lg">
+        <ResponsiveDialog open={aiOpen} onOpenChange={setAiOpen}>
+          <ResponsiveDialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-1.5">
                 <Sparkles className="h-4 w-4 text-primary" /> AI 分解采购清单
@@ -817,9 +816,9 @@ export function OrderFormDialog({
                 {aiBusy ? 'AI 解析中…' : '开始分解'}
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </DialogContent>
-    </Dialog>
+          </ResponsiveDialogContent>
+        </ResponsiveDialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   )
 }

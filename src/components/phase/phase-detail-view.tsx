@@ -16,6 +16,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   CalendarRange,
@@ -38,6 +39,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { MobilePageHeader } from '@/components/mobile/page-header'
 import { useToast } from '@/components/ui/use-toast'
 import { TaskKanban } from '@/components/phase/task-kanban'
 import { FileRequirementList } from '@/components/phase/file-requirement-list'
@@ -103,6 +105,7 @@ export default function PhaseDetailView({
   projectId: string
   phaseId: string
 }) {
+  const router = useRouter()
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { focusId, srcLabel, clearFocus } = useFocusHighlight()
@@ -210,6 +213,19 @@ export default function PhaseDetailView({
 
   return (
     <div className="space-y-4 p-4 md:p-6">
+      {/* 移动端页头：返回 + 阶段名（lg 隐藏，桌面面包屑不变） */}
+      <div className="-mx-4 -mt-6 lg:hidden">
+        <MobilePageHeader
+          title={
+            <span className="flex items-center gap-2">
+              <span className="shrink-0 rounded bg-muted px-2 py-0.5 font-mono text-sm">{phase.code}</span>
+              <span className="truncate">{phase.name}</span>
+            </span>
+          }
+          onBack={() => router.back()}
+        />
+      </div>
+
       {/* ─────────── 头区：阶段名 + 状态 + 负责人 + 日期 + checklist ─────────── */}
       <Card>
         <CardHeader className="pb-3">
@@ -250,7 +266,7 @@ export default function PhaseDetailView({
                 value={phase.status}
                 onValueChange={v => statusMutation.mutate(v as PhaseStatus)}
               >
-                <SelectTrigger className="h-8 w-[120px] text-xs">
+                <SelectTrigger className="h-11 w-[120px] text-xs lg:h-8">
                   <SelectValue placeholder="变更状态" />
                 </SelectTrigger>
                 <SelectContent>
@@ -278,7 +294,7 @@ export default function PhaseDetailView({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-8 text-xs"
+                  className="h-11 text-xs lg:h-8"
                   disabled={statusMutation.isPending || !canMarkDone.ok}
                   title={canMarkDone.ok ? '标记阶段完成' : canMarkDone.reason}
                   onClick={() => statusMutation.mutate('DONE')}
@@ -307,7 +323,7 @@ export default function PhaseDetailView({
                   value={phase.ownerId ?? undefined}
                   onValueChange={v => ownerMutation.mutate(v)}
                 >
-                  <SelectTrigger className="h-8 w-[160px] text-xs">
+                  <SelectTrigger className="h-11 w-[160px] text-xs lg:h-8">
                     <SelectValue placeholder="未分配" />
                   </SelectTrigger>
                   <SelectContent>
@@ -349,7 +365,7 @@ export default function PhaseDetailView({
                     {canEdit ? (
                       <input
                         type="date"
-                        className="h-7 rounded-md border bg-transparent px-1.5 text-xs"
+                        className="h-9 rounded-md border bg-transparent px-1.5 text-xs lg:h-7"
                         value={toDateInputValue(value)}
                         onChange={e =>
                           dateMutation.mutate({

@@ -31,7 +31,7 @@ import java.io.IOException
 /**
  * PM 聊天 —— Android WebView 壳。
  *
- * 加载 https://YOUR-PM-DOMAIN/im（IM 专页），登录态由 Web 层 localStorage 持久化，
+ * 加载 https://pm.hezongji.cn/im（IM 专页），登录态由 Web 层 localStorage 持久化，
  * 壳负责：文件选择（发图/发文件）、附件下载（JS 桥落盘 + 系统通知）、外链跳系统浏览器、
  * 断网重试页、双击退出。
  */
@@ -39,10 +39,10 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "PMChat-Main"
-        private const val APP_URL = "https://YOUR-PM-DOMAIN/im"
+        private const val APP_URL = "https://pm.hezongji.cn/im"
         private const val UA_SUFFIX = " PMChat/" + BuildConfig.VERSION_NAME
         private const val RETRY_SCHEME = "pmchat://retry"
-        private const val DOMAIN = "YOUR-PM-DOMAIN"
+        private const val DOMAIN = "pm.hezongji.cn"
 
         /** v1.2 W5：WebView 录音权限请求码 */
         private const val RECORD_AUDIO_REQUEST_CODE = 4100

@@ -28,6 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Sheet } from '@/components/ui/sheet'
 import {
   LayoutDashboard,
   FolderKanban,
@@ -256,7 +257,7 @@ export function Sidebar({ className }: SidebarProps) {
   const sidebarInner = (mobile: boolean, sbCollapsed: boolean) => (
     <>
       <div className="flex h-16 items-center gap-2 border-b px-4">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+        <div className="btn-gradient flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-primary-foreground">
           <Building2 className="h-4 w-4" />
         </div>
         {!sbCollapsed && (
@@ -298,14 +299,14 @@ export function Sidebar({ className }: SidebarProps) {
       <Link
         href="/download"
         onClick={() => mobile && setMobileMenuOpen(false)}
-        title="手机聊天 App 下载"
+        title="手机 App 下载（PM 项目管理 + PM 聊天）"
         className={cn(
           'mx-3 mb-1 mt-auto flex items-center rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10',
           sbCollapsed && 'justify-center px-0',
         )}
       >
         <Smartphone className={cn('h-5 w-5 shrink-0', !sbCollapsed && 'mr-3')} />
-        {!sbCollapsed && '手机聊天 App 下载'}
+        {!sbCollapsed && '手机 App 下载'}
       </Link>
       <div className="border-t p-3">
         <div className={cn('flex items-center', sbCollapsed ? 'flex-col gap-1' : 'justify-between')}>
@@ -323,7 +324,8 @@ export function Sidebar({ className }: SidebarProps) {
             <SelectContent>
               <SelectItem value="light">浅色</SelectItem>
               <SelectItem value="warm">暖阳</SelectItem>
-              <SelectItem value="mist">雾蓝</SelectItem>
+              <SelectItem value="mist">晴蓝</SelectItem>
+              <SelectItem value="mint">薄荷</SelectItem>
               <SelectItem value="dark">深色</SelectItem>
               <SelectItem value="dusk">柔夜</SelectItem>
             </SelectContent>
@@ -341,7 +343,7 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Mobile sidebar */}
       <div className={cn('fixed inset-0 z-50 lg:hidden', mobileMenuOpen ? 'block' : 'hidden')}>
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setMobileMenuOpen(false)} />
-        <div className="fixed inset-y-0 left-0 flex w-[85%] max-w-xs flex-col bg-card shadow-xl">
+        <div className="fixed inset-y-0 left-0 flex w-[85%] max-w-xs flex-col bg-[hsl(var(--sidebar))] shadow-xl">
           {sidebarInner(true, false)}
         </div>
       </div>
@@ -349,7 +351,7 @@ export function Sidebar({ className }: SidebarProps) {
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 hidden flex-col border-r bg-card lg:flex',
+          'fixed inset-y-0 left-0 z-40 hidden flex-col border-r bg-[hsl(var(--sidebar))] lg:flex',
           sidebarOpen ? 'w-60' : 'w-16',
           className
         )}
@@ -494,7 +496,7 @@ export function Header({ className }: HeaderProps) {
         </Button>
 
         {/* 全局搜索（项目/任务/成员，P2-2） */}
-        <div ref={boxRef} className="relative hidden flex-1 sm:block">
+        <div ref={boxRef} className="relative hidden flex-1 lg:block">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             type="search"
@@ -558,7 +560,7 @@ export function Header({ className }: HeaderProps) {
             </div>
           )}
         </div>
-        <div className="flex-1 sm:hidden" />
+        <h1 className="min-w-0 flex-1 truncate px-1 text-base font-semibold lg:hidden">项目管理系统</h1>
 
         <div className="flex items-center space-x-2">
           {/* 通知铃 —— P5 通知中心（§8.3） */}
@@ -608,12 +610,13 @@ export function Header({ className }: HeaderProps) {
       </div>
 
       {/* 移动端全屏搜索面板（2026-08-22 UIUX P1 修复） */}
-      <Dialog open={mobileSearchOpen} onOpenChange={setMobileSearchOpen}>
-        <DialogContent className="top-[10%] max-w-md translate-y-0 sm:hidden">
-          <DialogHeader>
-            <DialogTitle>搜索</DialogTitle>
-          </DialogHeader>
-          <div ref={mobileBoxRef} className="relative">
+      <Sheet
+        open={mobileSearchOpen}
+        onClose={() => setMobileSearchOpen(false)}
+        title="搜索"
+        maxHeight="70dvh"
+      >
+        <div ref={mobileBoxRef} className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               id="mobile-search-input"
@@ -621,7 +624,7 @@ export function Header({ className }: HeaderProps) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="搜索项目、任务、成员…"
-              className="h-10 w-full rounded-md border border-input bg-background pl-10 pr-4 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="h-11 w-full rounded-md border border-input bg-background pl-10 pr-4 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
 
             {open && query.trim() && (
@@ -695,8 +698,7 @@ export function Header({ className }: HeaderProps) {
               </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+      </Sheet>
     </header>
   )
 }
@@ -723,7 +725,7 @@ function SearchItem({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted"
+      className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-muted"
     >
       {children}
     </button>

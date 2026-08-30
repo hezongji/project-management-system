@@ -11,6 +11,8 @@
  */
 
 import { PageGuard } from '@/components/layout/page-guard'
+import { MobilePurchase } from '@/components/mobile/purchase'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -516,6 +518,44 @@ function PurchasePageInner() {
     queryClient.invalidateQueries({ queryKey: ['supplier-requests'] })
   }
 
+  /* ── 移动端分支（spec §3.7）：<1024px 渲染 MobilePurchase 子树，桌面 JSX 零改动 ── */
+  const isMobile = useIsMobile()
+  /** 金额概览字符串（fmtMoney 口径与桌面一致，移动端不重写） */
+  const moneyOverview = {
+    pending: pendingCount,
+    active: activeCount,
+    done: doneCount,
+    month: fmtMoney(stats?.monthAmount ?? null),
+    total: fmtMoney(stats?.totalAmount ?? null),
+  }
+  /** 移动端筛选处理器（镜像桌面 Select 语义） */
+  const mStatusFilter = (v: string) => {
+    setStatusFilter(v)
+    setPage(1)
+  }
+  const mCategoryFilter = (v: string) => {
+    setCategoryFilter(v)
+    setPage(1)
+  }
+  const mProjectFilter = (v: string) => {
+    setProjectFilter(v)
+    setPage(1)
+    if (!v && urlProjectId) {
+      setUrlProjectId('')
+      router.replace('/purchase')
+    }
+  }
+  const mSupplierFilter = (v: string) => {
+    setSupplierFilter(v)
+    setPage(1)
+  }
+  const mClearProjectUrl = () => {
+    setUrlProjectId('')
+    setProjectFilter('')
+    setPage(1)
+    router.replace('/purchase')
+  }
+
   // ── ★ 2026-08-25 导出 Excel：订单（按当前筛选拉全量，上限1000）、清单（当前视图）──
   const [exporting, setExporting] = useState(false)
   const exportOrders = async () => {
@@ -610,7 +650,7 @@ function PurchasePageInner() {
 
   // ── 订单命中行闪烁 3s + 滚动到视口中央（原始 <tr> 无法用 div 版 FocusRing，原生实现）──
   const [flashOrderId, setFlashOrderId] = useState<string | null>(null)
-  const orderRowRef = useRef<HTMLTableRowElement>(null)
+  const orderRowRef = useRef<HTMLElement | null>(null)
   const flashedRef = useRef<string | null>(null)
   useEffect(() => {
     if (tab !== 'orders' || focusKind !== 'order' || !focusId || !ordersData) return
@@ -652,7 +692,7 @@ function PurchasePageInner() {
 
   // ── 采购清单命中行闪烁 3s + 滚动到视口中央（表格行，与订单 Tab 同款原生实现）──
   const [flashRequestId, setFlashRequestId] = useState<string | null>(null)
-  const requestRowRef = useRef<HTMLTableRowElement>(null)
+  const requestRowRef = useRef<HTMLElement | null>(null)
   const reqFlashedRef = useRef<string | null>(null)
   useEffect(() => {
     if (tab !== 'requests' || focusKind !== 'request' || !focusId || !requestsData) return
@@ -773,6 +813,141 @@ function PurchasePageInner() {
         }
       },
       { confirmText: '删除', destructive: true },
+    )
+  }
+
+  /** 共享弹窗（ResponsiveDialog：桌面 Dialog / 移动端 Sheet，业务逻辑不变） */
+  const dialogs = (
+    <>
+      <OrderFormDialog
+        open={orderFormOpen}
+        onOpenChange={setOrderFormOpen}
+        supplementary={suppMode}
+        supplementaryOfId={suppOfId}
+        defaultProjectId={suppProjectId ?? (urlProjectId || null)}
+        editOrderId={editOrderId}
+        onCreated={refreshAll}
+      />
+      <OrderDetailDialog
+        orderId={detailOrderId}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onChanged={refreshAll}
+        onEdit={openEdit}
+        onSupplement={(ofId, projectId) => {
+          setDetailOpen(false)
+          setSuppMode(true)
+          setSuppOfId(ofId)
+          setSuppProjectId(projectId)
+          setEditOrderId(null)
+          setOrderFormOpen(true)
+        }}
+      />
+      <RequestFormDialog
+        open={requestFormOpen}
+        onOpenChange={setRequestFormOpen}
+        defaultProjectId={urlProjectId || null}
+        onCreated={refreshAll}
+      />
+      <AiPurchaseWorkbench
+        open={wbOpen}
+        onOpenChange={setWbOpen}
+        projectId={urlProjectId || ''}
+        onImported={refreshAll}
+        onViewOrder={(orderId) => {
+          setTab('orders')
+          setDetailOrderId(orderId)
+          setDetailOpen(true)
+        }}
+      />
+      <ConsolidatedListDialog
+        open={consolidatedOpen}
+        onOpenChange={setConsolidatedOpen}
+        defaultProjectId={urlProjectId || null}
+      />
+      <SupplierRequestDetailDialog
+        srId={srDetailId}
+        open={srDetailOpen}
+        onOpenChange={setSrDetailOpen}
+        onChanged={refreshAll}
+        onViewOrder={(orderId) => {
+          setSrDetailOpen(false)
+          setTab('orders')
+          setDetailOrderId(orderId)
+          setDetailOpen(true)
+        }}
+      />
+    </>
+  )
+
+  if (isMobile) {
+    return (
+      <>
+        <MobilePurchase
+          tab={tab}
+          onTabChange={setTab}
+          orders={ordersData?.items ?? []}
+          ordersLoading={ordersLoading}
+          ordersQueryKey={ordersQueryStr}
+          ordersPage={page}
+          ordersPages={ordersData?.pagination.pages ?? 1}
+          onOrdersPageChange={setPage}
+          requests={requestsData?.items ?? []}
+          requestsLoading={requestsLoading}
+          mineOnly={mineOnly}
+          onMineOnlyChange={setMineOnly}
+          srs={srData?.items ?? []}
+          srsLoading={srLoading}
+          statusFilter={statusFilter}
+          onStatusFilterChange={mStatusFilter}
+          categoryFilter={categoryFilter}
+          onCategoryFilterChange={mCategoryFilter}
+          projectFilter={projectFilter}
+          onProjectFilterChange={mProjectFilter}
+          supplierFilter={supplierFilter}
+          onSupplierFilterChange={mSupplierFilter}
+          projectOptions={projectOptions}
+          supplierOptions={supplierOptions}
+          urlProjectId={urlProjectId}
+          onClearProjectUrl={mClearProjectUrl}
+          statusCounts={statusCounts}
+          moneyOverview={moneyOverview}
+          flashOrderId={flashOrderId}
+          orderRowRef={orderRowRef}
+          flashRequestId={flashRequestId}
+          requestRowRef={requestRowRef}
+          focusId={focusId}
+          srcLabel={srcLabel}
+          onClearFocus={clearFocus}
+          isPurchase={isPurchase}
+          currentUserId={user?.id}
+          onStatCardClick={handleStatCardClick}
+          onOpenDetail={(id) => {
+            setDetailOrderId(id)
+            setDetailOpen(true)
+          }}
+          onOpenSrDetail={(id) => {
+            setSrDetailId(id)
+            setSrDetailOpen(true)
+          }}
+          onOpenCreate={openCreate}
+          onOpenRequestForm={() => setRequestFormOpen(true)}
+          onOpenWorkbench={() => setWbOpen(true)}
+          onOpenConsolidated={() => setConsolidatedOpen(true)}
+          onDeleteOrder={deleteOrder}
+          onDeleteSr={deleteSupplierRequest}
+          srSelected={srSelected}
+          onSrSelectedChange={setSrSelected}
+          selectableSrs={selectableSrs}
+          generating={generating}
+          onGenerateOrders={generateOrdersFromSrs}
+          exporting={exporting}
+          onExportOrders={exportOrders}
+          onExportRequests={exportRequests}
+        />
+        {dialogs}
+        {confirm.render}
+      </>
     )
   }
 
@@ -1045,7 +1220,7 @@ function PurchasePageInner() {
                       return (
                         <tr
                           key={o.id}
-                          ref={o.id === flashOrderId ? orderRowRef : undefined}
+                          ref={o.id === flashOrderId ? (el) => { orderRowRef.current = el } : undefined}
                           data-focus-id={o.id === focusId ? o.id : undefined}
                           className={cn(
                             'cursor-pointer border-t transition-colors hover:bg-muted/40',
@@ -1185,7 +1360,7 @@ function PurchasePageInner() {
                         return (
                           <tr
                             key={pr.id}
-                            ref={pr.id === flashRequestId ? requestRowRef : undefined}
+                            ref={pr.id === flashRequestId ? (el) => { requestRowRef.current = el } : undefined}
                             data-focus-id={pr.id === focusId ? pr.id : undefined}
                             className={cn(
                               'border-t transition-colors hover:bg-muted/40',
@@ -1375,68 +1550,8 @@ function PurchasePageInner() {
         </TabsContent>
       </Tabs>
 
-      {/* 弹窗 */}
-      <OrderFormDialog
-        open={orderFormOpen}
-        onOpenChange={setOrderFormOpen}
-        supplementary={suppMode}
-        supplementaryOfId={suppOfId}
-        defaultProjectId={suppProjectId ?? (urlProjectId || null)}
-        editOrderId={editOrderId}
-        onCreated={refreshAll}
-      />
-      <OrderDetailDialog
-        orderId={detailOrderId}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        onChanged={refreshAll}
-        onEdit={openEdit}
-        onSupplement={(ofId, projectId) => {
-          setDetailOpen(false)
-          setSuppMode(true)
-          setSuppOfId(ofId)
-          setSuppProjectId(projectId)
-          setEditOrderId(null)
-          setOrderFormOpen(true)
-        }}
-      />
-      <RequestFormDialog
-        open={requestFormOpen}
-        onOpenChange={setRequestFormOpen}
-        defaultProjectId={urlProjectId || null}
-        onCreated={refreshAll}
-      />
-      {/* ★ AI 采购工作台：乱格式清单 → 标准表格 → 品牌归纳 → 指定供应商 → 按供应商归单生成订单 */}
-      <AiPurchaseWorkbench
-        open={wbOpen}
-        onOpenChange={setWbOpen}
-        projectId={urlProjectId || ''}
-        onImported={refreshAll}
-        onViewOrder={(orderId) => {
-          setTab('orders')
-          setDetailOrderId(orderId)
-          setDetailOpen(true)
-        }}
-      />
-      {/* ★ 2026-08-25 项目采购总清单：全订单明细按三大类合并汇总，阶段性/结项归档/成本核算 */}
-      <ConsolidatedListDialog
-        open={consolidatedOpen}
-        onOpenChange={setConsolidatedOpen}
-        defaultProjectId={urlProjectId || null}
-      />
-      {/* ★ 供应商需求详情/流转：报价 → 转订单（自动生成 CG-* 草稿订单）；查看订单跳订单 Tab */}
-      <SupplierRequestDetailDialog
-        srId={srDetailId}
-        open={srDetailOpen}
-        onOpenChange={setSrDetailOpen}
-        onChanged={refreshAll}
-        onViewOrder={(orderId) => {
-          setSrDetailOpen(false)
-          setTab('orders')
-          setDetailOrderId(orderId)
-          setDetailOpen(true)
-        }}
-      />
+      {/* 弹窗（ResponsiveDialog：桌面 Dialog / 移动端 Sheet） */}
+      {dialogs}
       {confirm.render}
     </div>
   )

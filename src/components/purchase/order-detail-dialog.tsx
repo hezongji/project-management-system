@@ -14,13 +14,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/mobile/responsive-dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -307,8 +306,8 @@ export function OrderDetailDialog({ orderId, open, onOpenChange, onChanged, onSu
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+        <ResponsiveDialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex flex-wrap items-center gap-2">
               采购订单 {order?.code ?? ''}
@@ -652,8 +651,8 @@ export function OrderDetailDialog({ orderId, open, onOpenChange, onChanged, onSu
               )}
             </div>
           )}
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* ── 各操作弹窗 ── */}
       {order && (
@@ -717,8 +716,8 @@ export function OrderDetailDialog({ orderId, open, onOpenChange, onChanged, onSu
       />
 
       {/* 发货登记 */}
-      <Dialog open={shipOpen} onOpenChange={setShipOpen}>
-        <DialogContent className="max-w-md">
+      <ResponsiveDialog open={shipOpen} onOpenChange={setShipOpen}>
+        <ResponsiveDialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Truck className="h-4 w-4 text-cyan-500" /> 登记发货
@@ -742,12 +741,12 @@ export function OrderDetailDialog({ orderId, open, onOpenChange, onChanged, onSu
               确认发货
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* 取消/作废 */}
-      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <DialogContent className="max-w-md">
+      <ResponsiveDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <ResponsiveDialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <XCircle className="h-4 w-4 text-destructive" /> 取消/作废订单
@@ -778,8 +777,8 @@ export function OrderDetailDialog({ orderId, open, onOpenChange, onChanged, onSu
               确认取消
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
 
       {/* 收货确认（单批） */}
       <ConfirmDialog

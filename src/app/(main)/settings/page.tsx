@@ -33,6 +33,8 @@ import {
 } from 'lucide-react'
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { MobileSegmentedTabs } from '@/components/mobile/segmented-tabs'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import { PermissionAssign } from '@/components/settings/permission-assign'
 import { ExpenseCategoryManager } from '@/components/expense/category-manager'
 import { DataTable } from '@/components/ui/data-table'
@@ -131,6 +133,20 @@ export default function SettingsPage() {
     )
   }
 
+  // 移动端 Tab 切换（S3-W5）：状态提升，桌面 Tabs / 移动 MobileSegmentedTabs 双分支
+  const isMobile = useIsMobile()
+  const [tab, setTab] = React.useState('users')
+
+  const TAB_ITEMS = [
+    { key: 'users', label: '用户管理' },
+    { key: 'permissions', label: '权限分配' },
+    { key: 'audit', label: '审计日志' },
+    { key: 'storage', label: '存储统计' },
+    { key: 'settings', label: '系统设置' },
+    { key: 'expense-cats', label: '费用分类' },
+    { key: 'cleanup', label: '数据清理' },
+  ] as const
+
   return (
     <div className="space-y-4">
       <div className="border-b pb-4">
@@ -142,7 +158,21 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="users">
+      {isMobile ? (
+        <div>
+          <MobileSegmentedTabs tabs={TAB_ITEMS.map((t) => ({ key: t.key, label: t.label }))} active={tab} onChange={setTab} />
+          <div className="mt-4">
+            {tab === 'users' && <UsersTab />}
+            {tab === 'permissions' && <PermissionAssign />}
+            {tab === 'audit' && <AuditTab />}
+            {tab === 'storage' && <StorageTab />}
+            {tab === 'settings' && <SettingsTab />}
+            {tab === 'expense-cats' && <ExpenseCategoryManager />}
+            {tab === 'cleanup' && <CleanupTab />}
+          </div>
+        </div>
+      ) : (
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full overflow-x-auto">
           <TabsTrigger value="users">
             <Users className="mr-1.5 h-4 w-4" /> 用户管理
@@ -189,6 +219,7 @@ export default function SettingsPage() {
           <CleanupTab />
         </TabsContent>
       </Tabs>
+      )}
     </div>
   )
 }

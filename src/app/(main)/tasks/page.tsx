@@ -34,6 +34,8 @@ import { formatRelativeTime, formatDate, cn } from '@/lib/utils'
 import { label, TASK_STATUS, PRIORITY } from '@/lib/labels'
 import { TablePagination } from '@/components/ui/data-table'
 import { TaskDrawer } from '@/components/tasks/task-drawer'
+import { useIsMobile } from '@/hooks/use-is-mobile'
+import { MobileTasks } from '@/components/mobile/tasks'
 import { 
   Plus, 
   Search, 
@@ -63,6 +65,8 @@ function TasksPageInner() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   // 分页（2026-08-22 UIUX P1 修复）
   const [page, setPage] = useState(1)
+  /** 移动端 JS 分支：<1024px 渲染 MobileTasks 子树，桌面 JSX 零改动 */
+  const isMobile = useIsMobile()
 
   // 视图模式：list=平铺列表 / overview=多维总览
   const [viewMode, setViewMode] = useState<'list' | 'overview'>('overview')
@@ -274,6 +278,31 @@ function TasksPageInner() {
 
   return (
     <div className="space-y-6">
+      {isMobile ? (
+        <MobileTasks
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          statusFilter={statusFilter}
+          onStatusChange={setStatusFilter}
+          priorityFilter={priorityFilter}
+          onPriorityChange={setPriorityFilter}
+          sortKey={`${sortBy}-${sortOrder}`}
+          onSortChange={(v) => {
+            const [field, order] = v.split('-')
+            setSortBy(field)
+            setSortOrder(order as 'asc' | 'desc')
+          }}
+          page={page}
+          onPageChange={setPage}
+          tasks={tasks}
+          isLoading={isLoading}
+          pages={tasksData?.data?.pagination?.pages ?? 1}
+          total={tasksData?.data?.pagination?.total ?? 0}
+          onOpenTask={openTask}
+          onCreate={openCreate}
+        />
+      ) : (
+      <>
         {/* Header（统一标题区） */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
           <div>
@@ -643,6 +672,8 @@ function TasksPageInner() {
             )}
           </div>
         )}
+      </>
+      )}
 
       {/* 任务详情抽屉：基本信息/修订历史/标注/评论（§8.2③） */}
       <TaskDrawer

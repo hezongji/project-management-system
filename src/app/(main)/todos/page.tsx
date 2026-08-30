@@ -28,6 +28,8 @@ import { ApiService } from '@/services/api'
 import { useAuthStore } from '@/store/auth'
 import { useConfirm } from '@/components/ui/confirm-dialog'
 import { useToast } from '@/components/ui/use-toast'
+import { useIsMobile } from '@/hooks/use-is-mobile'
+import { MobileTodos } from '@/components/mobile/todos'
 import { cn, formatDate, formatRelativeTime } from '@/lib/utils'
 import { label, PRIORITY } from '@/lib/labels'
 import {
@@ -101,6 +103,8 @@ function TodosPageInner() {
   /** 待办列表状态：0=未完成 / 1=已完成 */
   const [doneFilter, setDoneFilter] = useState<0 | 1>(0)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  /** 移动端 JS 分支：<1024px 渲染 MobileTodos 子树，桌面 JSX 零改动 */
+  const isMobile = useIsMobile()
 
   // 我的待办（done=0/1 切换）
   const { data: todosData, isLoading: todosLoading } = useQuery({
@@ -168,6 +172,28 @@ function TodosPageInner() {
 
   return (
     <div className="space-y-6">
+      {isMobile ? (
+        <MobileTodos
+          tab={tab}
+          onTabChange={setTab}
+          doneFilter={doneFilter}
+          onDoneFilterChange={setDoneFilter}
+          todos={todos}
+          todosLoading={todosLoading}
+          incoming={incoming}
+          outgoing={outgoing}
+          recentlyDone={recentlyDone}
+          urgesLoading={urgesLoading}
+          togglingId={togglingId}
+          onToggleTodo={handleToggleTodo}
+          onDeleteUrge={handleDeleteUrge}
+          onUrgeFile={goUrgeFile}
+          onTodoOpen={(t) => {
+            if (t.link) router.push(todoLinkTarget(t.link))
+          }}
+        />
+      ) : (
+      <>
       {/* Header（统一标题区：标题 + 副标题 + 分隔线） */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
         <div>
@@ -451,6 +477,8 @@ function TodosPageInner() {
           )}
         </TabsContent>
       </Tabs>
+      </>
+      )}
 
       {/* 删除/撤回确认弹窗 */}
       {confirm.render}

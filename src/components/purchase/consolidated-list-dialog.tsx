@@ -12,12 +12,11 @@
 import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { ResponsiveDialog, ResponsiveDialogContent } from '@/components/mobile/responsive-dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
@@ -117,8 +116,8 @@ export function ConsolidatedListDialog({ open, onOpenChange, defaultProjectId }:
     n == null ? '—' : `¥${n.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileStack className="h-5 w-5 text-primary" /> 项目采购总清单（合并汇总）
@@ -247,7 +246,7 @@ export function ConsolidatedListDialog({ open, onOpenChange, defaultProjectId }:
             </p>
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   )
 }

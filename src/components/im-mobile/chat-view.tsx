@@ -861,7 +861,7 @@ export function ChatView({
       {/* 消息区（微信灰背景） */}
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#EDEDED] px-3 py-3 select-none dark:bg-[#181818]"
+        className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[hsl(var(--chat-bg))] px-3 py-3 select-none"
         style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
         onScroll={onScroll}
       >

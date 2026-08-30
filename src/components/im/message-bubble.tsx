@@ -389,7 +389,7 @@ export function MessageBubble({
             !isCard && (mine ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'),
             !isCard && isMobile && (mine ? 'bg-[#95ec69] text-foreground' : 'bg-white text-foreground shadow-sm'),
             !isCard && 'px-3 py-2 text-sm',
-            isMobile && 'rounded-2xl',
+            isMobile && 'rounded-md',
             mentionedMe && 'ring-2 ring-amber-400/70',
           )}
         >

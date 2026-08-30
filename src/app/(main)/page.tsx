@@ -1,6 +1,8 @@
 'use client'
 
 import { PageGuard } from '@/components/layout/page-guard'
+import { useIsMobile } from '@/hooks/use-is-mobile'
+import { MobileDashboard } from '@/components/mobile/dashboard'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -55,6 +57,7 @@ function DashboardPageInner() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const confirm = useConfirm()
+  const isMobile = useIsMobile()
   const { user, isAuthenticated, isLoading: authLoading } = useAuthStore()
 
   const { data: stats } = useQuery({
@@ -170,6 +173,25 @@ function DashboardPageInner() {
 
   return (
     <div className="space-y-6">
+      {isMobile ? (
+        <MobileDashboard
+          userName={user?.name}
+          stats={s}
+          taskDoneRate={taskDoneRate}
+          projects={projects?.data?.projects ?? []}
+          projectsLoading={projectsLoading}
+          deliverables={myDeliverables?.items ?? []}
+          deliverablesTotal={myDeliverables?.pagination.total ?? 0}
+          myStats={myStats}
+          urges={myUrges?.data}
+          todos={todos}
+          canCreate={user?.role === 'ADMIN' || user?.role === 'PROJECT_MANAGER'}
+          onDeleteTodo={handleDeleteTodo}
+          onDeleteUrge={handleDeleteUrge}
+          onUrgeFile={goUrgeFile}
+        />
+      ) : (
+      <>
       {/* Header（统一标题区：标题 + 副标题 + 操作按钮 + 分隔线） */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
         <div>
@@ -744,6 +766,8 @@ function DashboardPageInner() {
         </CardContent>
       </Card>
 
+      </>
+      )}
       {/* 删除确认弹窗（删除工程第5棒：待办/催办） */}
       {confirm.render}
     </div>

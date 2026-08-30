@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="pm_blue">#3B82F6</color>
+    <color name="pm_blue_dark">#1E40AF</color>
+    <color name="splash_bg">#FFFFFF</color>
+</resources>

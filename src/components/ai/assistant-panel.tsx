@@ -183,7 +183,7 @@ function AssistantPanelInner() {
         type="button"
         size="icon"
         aria-label={open ? '关闭 AI 助手' : '打开 AI 助手'}
-        className="fixed bottom-5 right-5 z-50 h-12 w-12 rounded-full shadow-lg"
+        className="fixed bottom-20 right-5 z-50 h-12 w-12 rounded-full shadow-lg lg:bottom-5"
         onClick={() => setOpen((v) => !v)}
       >
         {open ? <X className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
@@ -191,7 +191,7 @@ function AssistantPanelInner() {
 
       {/* 抽屉面板 */}
       {open && (
-        <div className="fixed bottom-20 right-5 z-50 flex h-[520px] w-[min(92vw,380px)] flex-col overflow-hidden rounded-xl border bg-card text-card-foreground shadow-xl">
+        <div className="fixed bottom-36 right-5 z-50 flex h-[min(520px,60dvh)] w-[min(92vw,380px)] lg:bottom-20 flex-col overflow-hidden rounded-xl border bg-card text-card-foreground shadow-xl">
           {/* Markdown 作用域样式（仅面板打开时挂载）*/}
           <style dangerouslySetInnerHTML={{ __html: MD_STYLES }} />
           {/* 头部 */}

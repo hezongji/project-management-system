@@ -40,7 +40,7 @@ export default function RootLayout({
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
-          themes={['light', 'dark', 'warm', 'mist', 'dusk']}
+          themes={['light', 'dark', 'warm', 'mist', 'mint', 'dusk']}
           enableSystem
           disableTransitionOnChange
         >

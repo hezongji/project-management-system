@@ -1,6 +1,10 @@
 'use client'
 
 import { PageGuard } from '@/components/layout/page-guard'
+import { MobileFab } from '@/components/mobile/fab'
+import { MobileSearchBar } from '@/components/mobile/search-bar'
+import { MobileEmptyState } from '@/components/mobile/empty-state'
+import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -103,15 +107,53 @@ function ProjectsPageInner() {
             </p>
           </div>
           {canCreate && (
-            <Button onClick={() => router.push('/projects/new')}>
+            <Button className="hidden lg:inline-flex" onClick={() => router.push('/projects/new')}>
               <Plus className="mr-2 h-4 w-4" />
               新建项目
             </Button>
           )}
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* 移动端工具行：搜索 + 状态横滑 chips */}
+        <div className="space-y-2 lg:hidden">
+          <MobileSearchBar
+            value={searchTerm}
+            onChange={(v) => { setSearchTerm(v); setPage(1) }}
+            placeholder="搜索项目..."
+          />
+          <div
+            className="-mx-3 flex gap-2 overflow-x-auto px-3"
+            style={{ scrollbarWidth: 'none' }}
+          >
+            {([
+              { k: 'all', t: '全部' },
+              { k: 'ACTIVE', t: '进行中' },
+              { k: 'COMPLETED', t: '已完成' },
+              { k: 'ON_HOLD', t: '暂停' },
+              { k: 'CANCELLED', t: '已取消' },
+            ] as const).map((c) => {
+              const active = statusFilter === c.k
+              return (
+                <button
+                  key={c.k}
+                  type="button"
+                  onClick={() => { setStatusFilter(c.k); setPage(1) }}
+                  className={cn(
+                    'flex h-10 min-w-16 shrink-0 items-center justify-center rounded-full border px-3 text-xs',
+                    active
+                      ? 'border-primary bg-primary/10 font-medium text-primary'
+                      : 'border-border bg-card text-muted-foreground',
+                  )}
+                >
+                  {c.t}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Filters（桌面） */}
+        <div className="hidden flex-wrap items-center gap-2 lg:flex">
           <div className="relative w-full sm:w-auto sm:flex-1 sm:max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -294,7 +336,7 @@ function ProjectsPageInner() {
         )}
         
         {projects.length === 0 && !isLoading && (
-          <div className="text-center py-12">
+          <div className="hidden text-center py-12 lg:block">
             <FolderOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-lg font-medium mb-2">暂无项目</h3>
             <p className="text-muted-foreground mb-4">
@@ -307,6 +349,33 @@ function ProjectsPageInner() {
               </Button>
             )}
           </div>
+        )}
+
+        {/* 移动端空态 */}
+        {projects.length === 0 && !isLoading && (
+          <div className="lg:hidden">
+            <MobileEmptyState
+              icon={FolderOpen}
+              title={searchTerm ? '没有找到匹配的项目' : '暂无项目'}
+              desc={searchTerm ? '换个关键词试试' : '点击右下角按钮创建第一个项目'}
+              action={
+                !searchTerm && canCreate ? (
+                  <button
+                    type="button"
+                    onClick={() => router.push('/projects/new')}
+                    className="btn-gradient h-11 rounded-md px-6 text-sm text-primary-foreground"
+                  >
+                    创建项目
+                  </button>
+                ) : undefined
+              }
+            />
+          </div>
+        )}
+
+        {/* 移动端 FAB：新建项目（bottom-20 避开 Tab 栏） */}
+        {canCreate && (
+          <MobileFab icon={Plus} label="新建项目" onClick={() => router.push('/projects/new')} />
         )}
     </div>
   )

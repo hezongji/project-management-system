@@ -63,6 +63,8 @@ import { ALL_STATUSES, STATUS_LABEL, SCOPE_LABEL } from '@/components/files/badg
 import { exportRequirements } from '@/lib/excel-templates'
 
 import { globalConfirm } from '@/lib/global-confirm'
+import { useIsMobile } from '@/hooks/use-is-mobile'
+import { MobileFiles } from '@/components/mobile/files'
 import type {
   CatalogNode,
   FileRequirementItem,
@@ -218,6 +220,8 @@ function FilesPageInner() {
 
   // ── 网盘化（20260830-drive-war W3）：双 Tab（交付计划/项目网盘，spec D7）──
   const [tab, setTab] = useState<'plan' | 'drive'>('plan')
+  // S3-W5：移动端子树分支（数据/弹窗状态全部共用，桌面 JSX 原样）
+  const isMobile = useIsMobile()
   // 网盘 Tab 点条目行 → 跳回交付计划 Tab 并打开详情抽屉
   const handleOpenRequirementFromDrive = (requirementId: string) => {
     setTab('plan')
@@ -451,6 +455,162 @@ function FilesPageInner() {
   }
 
   // ── 渲染 ──
+  // 移动端：MobileFiles 子树（弹窗/抽屉在下方共用区）
+  const dialogs = (
+    <>
+      {/* 弹窗 */}
+      <Dialog
+        open={moveDialog.open}
+        onOpenChange={(open) => setMoveDialog((s) => ({ ...s, open }))}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>移动文件</DialogTitle>
+            <DialogDescription className="break-all">{moveDialog.fileName}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <p className="mb-1 text-sm font-medium">目标目录（本项目内）</p>
+              <Select
+                value={moveDialog.targetCatalogId}
+                onValueChange={(v) => setMoveDialog((s) => ({ ...s, targetCatalogId: v }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="选择目标目录" />
+                </SelectTrigger>
+                <SelectContent>
+                  {flatCatalogs.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setMoveDialog((s) => ({ ...s, open: false }))}>
+                取消
+              </Button>
+              <Button size="sm" disabled={!moveDialog.targetCatalogId || moving} onClick={handleMove}>
+                {moving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <FolderInput className="mr-1 h-3.5 w-3.5" />}
+                确认移动
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <CatalogDialog
+        open={catalogDialog.open}
+        onOpenChange={(open) => setCatalogDialog((s) => ({ ...s, open }))}
+        parent={catalogDialog.parent}
+        node={catalogDialog.node}
+        onSave={handleCatalogSave}
+        saving={savingCatalog}
+      />
+
+      <RequirementFormDialog
+        open={reqDialog.open}
+        onOpenChange={(open) => setReqDialog((s) => ({ ...s, open }))}
+        projectId={projectId}
+        catalogs={flatCatalogs}
+        members={members}
+        externalOrgs={orgs}
+        item={reqDialog.item}
+        defaultCatalogId={selectedCatalogId ?? flatCatalogs[0]?.id ?? null}
+        onSave={handleRequirementSave}
+        saving={savingReq}
+      />
+
+      <ImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        projectId={projectId}
+        onImported={() => {
+          refreshRequirements()
+          refreshCatalogs()
+        }}
+      />
+
+      <FileMatrixDialog open={matrixOpen} onOpenChange={setMatrixOpen} projectId={projectId} />
+
+      <AiExplainDialog
+        requirementId={explainItem?.id ?? null}
+        requirementName={explainItem?.name}
+        open={!!explainItem}
+        onOpenChange={(v) => {
+          if (!v) setExplainItem(null)
+        }}
+      />
+      <RequirementDetailDrawer
+        item={detailItem}
+        onClose={closeDetail}
+        onChanged={() => {
+          void refreshRequirements()
+        }}
+      />
+    </>
+  )
+
+  if (isMobile) {
+    return (
+      <div className="space-y-3 pb-2">
+        {srcLabel && (
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="gap-1 font-normal">
+              已定位 · 来自：{srcLabel}
+              <button
+                type="button"
+                onClick={clearFocus}
+                className="ml-0.5 text-muted-foreground hover:text-foreground"
+                aria-label="关闭定位提示"
+              >
+                ✕
+              </button>
+            </Badge>
+          </div>
+        )}
+        <MobileFiles
+          projects={projects}
+          projectId={projectId}
+          onProjectChange={setProjectId}
+          tab={tab}
+          onTabChange={setTab}
+          catalogs={catalogs}
+          flatCatalogs={flatCatalogs}
+          selectedCatalogId={selectedCatalogId}
+          onSelectCatalog={setSelectedCatalogId}
+          statusFilter={statusFilter}
+          onStatusFilter={(v) => setStatusFilter(v === 'ALL' ? '' : v)}
+          mineOnly={mineOnly}
+          onMineOnlyChange={setMineOnly}
+          overdueOnly={overdueOnly}
+          onOverdueOnlyChange={setOverdueOnly}
+          items={items}
+          loading={reqLoading}
+          pagination={pagination}
+          page={page}
+          onPageChange={setPage}
+          canCreate={canCreate}
+          onCreateRequirement={() => setReqDialog({ open: true, item: null })}
+          onImport={() => setImportOpen(true)}
+          onExport={handleExport}
+          onMatrix={() => setMatrixOpen(true)}
+          onOpenDetail={(item) => {
+            setSelectedRowId(item.id)
+            setDetailItem(item)
+          }}
+          onOpenRequirementFromDrive={handleOpenRequirementFromDrive}
+          adhocFiles={adhocFiles}
+          onMoveAdhoc={(fileId, fileName) =>
+            setMoveDialog({ open: true, fileId, fileName, targetCatalogId: selectedCatalogId ?? '' })
+          }
+        />
+        {dialogs}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       {/* 顶部：标题 + 项目选择（统一标题区） */}
@@ -672,97 +832,7 @@ function FilesPageInner() {
         </Tabs>
       )}
 
-      {/* 弹窗 */}
-      <Dialog
-        open={moveDialog.open}
-        onOpenChange={(open) => setMoveDialog((s) => ({ ...s, open }))}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>移动文件</DialogTitle>
-            <DialogDescription className="break-all">{moveDialog.fileName}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <p className="mb-1 text-sm font-medium">目标目录（本项目内）</p>
-              <Select
-                value={moveDialog.targetCatalogId}
-                onValueChange={(v) => setMoveDialog((s) => ({ ...s, targetCatalogId: v }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="选择目标目录" />
-                </SelectTrigger>
-                <SelectContent>
-                  {flatCatalogs.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setMoveDialog((s) => ({ ...s, open: false }))}>
-                取消
-              </Button>
-              <Button size="sm" disabled={!moveDialog.targetCatalogId || moving} onClick={handleMove}>
-                {moving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <FolderInput className="mr-1 h-3.5 w-3.5" />}
-                确认移动
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <CatalogDialog
-        open={catalogDialog.open}
-        onOpenChange={(open) => setCatalogDialog((s) => ({ ...s, open }))}
-        parent={catalogDialog.parent}
-        node={catalogDialog.node}
-        onSave={handleCatalogSave}
-        saving={savingCatalog}
-      />
-
-      <RequirementFormDialog
-        open={reqDialog.open}
-        onOpenChange={(open) => setReqDialog((s) => ({ ...s, open }))}
-        projectId={projectId}
-        catalogs={flatCatalogs}
-        members={members}
-        externalOrgs={orgs}
-        item={reqDialog.item}
-        defaultCatalogId={selectedCatalogId ?? flatCatalogs[0]?.id ?? null}
-        onSave={handleRequirementSave}
-        saving={savingReq}
-      />
-
-      <ImportDialog
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        projectId={projectId}
-        onImported={() => {
-          refreshRequirements()
-          refreshCatalogs()
-        }}
-      />
-
-      <FileMatrixDialog open={matrixOpen} onOpenChange={setMatrixOpen} projectId={projectId} />
-
-      <AiExplainDialog
-        requirementId={explainItem?.id ?? null}
-        requirementName={explainItem?.name}
-        open={!!explainItem}
-        onOpenChange={(v) => {
-          if (!v) setExplainItem(null)
-        }}
-      />
-      <RequirementDetailDrawer
-        item={detailItem}
-        onClose={closeDetail}
-        onChanged={() => {
-          void refreshRequirements()
-        }}
-      />
+      {dialogs}
     </div>
   )
 }

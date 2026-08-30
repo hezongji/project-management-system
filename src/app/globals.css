@@ -4,117 +4,178 @@
 
 @layer base {
   :root {
-    --background: 220 20% 96%;
-    --foreground: 222 30% 12%;
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 222 30% 12%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222 30% 12%;
-    --primary: 220 82% 57%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 217 85% 52%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 30% 94%;
-    --secondary-foreground: 222 30% 12%;
-    --muted: 220 25% 94%;
-    --muted-foreground: 220 10% 56%;
-    --accent: 220 30% 94%;
-    --accent-foreground: 222 30% 12%;
+    --secondary: 210 30% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 30% 96%;
+    --muted-foreground: 215 20% 45%;
+    --accent: 215 40% 95%;
+    --accent-foreground: 222 47% 11%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 15% 90%;
-    --input: 220 15% 90%;
-    --ring: 220 82% 57%;
+    --border: 215 25% 90%;
+    --input: 215 25% 90%;
+    --ring: 217 85% 52%;
     --radius: 0.625rem;
+    /* 渐变端点（主按钮 / Logo / 统计图标） */
+    --gradient-from: 217 85% 55%;
+    --gradient-to: 262 83% 65%;
+    --chat-bg: 0 0% 93%;
+    --glow-a: 217 85% 88%;
+    --glow-b: 262 60% 90%;
+    --sidebar: 210 35% 96%;
   }
 
+  /* 深空蓝（dark）：Linear 风近黑蓝底，亮晴空蓝主色 + 蓝紫渐变 */
   .dark {
-    --background: 222 47% 8%;
-    --foreground: 213 27% 84%;
-    --card: 222 47% 11%;
-    --card-foreground: 213 27% 84%;
-    --popover: 222 47% 11%;
-    --popover-foreground: 213 27% 84%;
-    --primary: 239 84% 67%;
+    --background: 222 45% 7%;
+    --foreground: 213 30% 92%;
+    --card: 222 40% 10%;
+    --card-foreground: 213 30% 92%;
+    --popover: 222 38% 12%;
+    --popover-foreground: 213 30% 92%;
+    --primary: 224 90% 62%;
     --primary-foreground: 222 47% 8%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 213 27% 84%;
-    --muted: 217 33% 17%;
+    --secondary: 222 32% 15%;
+    --secondary-foreground: 213 30% 92%;
+    --muted: 222 32% 15%;
     --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 213 27% 84%;
-    --destructive: 0 62% 40%;
-    --destructive-foreground: 213 27% 84%;
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 239 84% 67%;
+    --accent: 222 35% 18%;
+    --accent-foreground: 213 30% 92%;
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 213 30% 92%;
+    --border: 222 28% 18%;
+    --input: 222 28% 18%;
+    --ring: 224 90% 62%;
+    --gradient-from: 224 90% 60%;
+    --gradient-to: 262 84% 70%;
+    --chat-bg: 0 0% 10%;
+    --glow-a: 224 75% 22%;
+    --glow-b: 262 70% 16%;
+    --sidebar: 222 42% 9%;
   }
 
-  /* 暖阳（warm）：专业暖调，焦糖橙主色 */
+  /* 暖阳（warm）→ 方案 A：清新珊瑚暖阳。奶油白底 + 亮珊瑚橙主色 + 珊瑚→杏粉渐变 */
   .warm {
-    --background: 40 30% 97%;
-    --foreground: 30 20% 15%;
+    --background: 38 55% 98%;
+    --foreground: 30 45% 16%;
     --card: 0 0% 100%;
-    --card-foreground: 30 20% 15%;
+    --card-foreground: 30 45% 16%;
     --popover: 0 0% 100%;
-    --popover-foreground: 30 20% 15%;
-    --primary: 25 85% 52%;
+    --popover-foreground: 30 45% 16%;
+    --primary: 25 85% 45%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 35 30% 92%;
-    --secondary-foreground: 30 20% 15%;
-    --muted: 35 30% 92%;
-    --muted-foreground: 30 12% 42%;
-    --accent: 35 30% 92%;
-    --accent-foreground: 30 20% 15%;
-    --destructive: 0 72% 51%;
+    --secondary: 35 40% 94%;
+    --secondary-foreground: 30 45% 16%;
+    --muted: 35 40% 94%;
+    --muted-foreground: 35 15% 42%;
+    --accent: 35 45% 92%;
+    --accent-foreground: 30 45% 16%;
+    --destructive: 8 72% 48%;
     --destructive-foreground: 0 0% 100%;
-    --border: 35 25% 87%;
-    --input: 35 25% 87%;
-    --ring: 25 85% 52%;
+    --border: 38 45% 88%;
+    --input: 38 45% 88%;
+    --ring: 25 85% 45%;
+    --gradient-from: 25 95% 60%;
+    --gradient-to: 25 100% 72%;
+    --chat-bg: 35 25% 93%;
+    --glow-a: 25 90% 88%;
+    --glow-b: 38 55% 90%;
+    --sidebar: 38 40% 96%;
   }
 
-  /* 雾蓝（mist）：专业冷调，青蓝主色 */
+  /* 晴蓝（mist）→ 方案 B：清新晴蓝渐变。浅蓝白底 + 晴空蓝主色 + 蓝→紫罗兰渐变 */
   .mist {
-    --background: 207 30% 96%;
-    --foreground: 210 35% 18%;
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 210 35% 18%;
+    --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 210 35% 18%;
-    --primary: 201 90% 42%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 217 85% 52%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 205 25% 90%;
-    --secondary-foreground: 210 35% 18%;
-    --muted: 205 25% 90%;
-    --muted-foreground: 210 15% 44%;
-    --accent: 205 25% 90%;
-    --accent-foreground: 210 35% 18%;
+    --secondary: 210 30% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 30% 96%;
+    --muted-foreground: 215 20% 45%;
+    --accent: 215 40% 95%;
+    --accent-foreground: 222 47% 11%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 205 22% 86%;
-    --input: 205 22% 86%;
-    --ring: 201 90% 42%;
+    --border: 215 25% 90%;
+    --input: 215 25% 90%;
+    --ring: 217 85% 52%;
+    --gradient-from: 217 85% 55%;
+    --gradient-to: 262 83% 65%;
+    --chat-bg: 210 25% 93%;
+    --glow-a: 217 85% 88%;
+    --glow-b: 262 70% 91%;
+    --sidebar: 210 32% 96%;
   }
 
-  /* 柔夜（dusk）：暮紫深色，紫罗兰主色 */
+  /* 薄荷（mint）→ 方案 C：薄荷青绿清新。薄荷白底 + 青绿主色 + 翠绿→湖蓝渐变 */
+  .mint {
+    --background: 160 40% 98%;
+    --foreground: 170 40% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 170 40% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 170 40% 12%;
+    --primary: 165 75% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 160 30% 95%;
+    --secondary-foreground: 170 40% 12%;
+    --muted: 160 30% 95%;
+    --muted-foreground: 165 18% 42%;
+    --accent: 160 35% 93%;
+    --accent-foreground: 170 40% 12%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 160 30% 88%;
+    --input: 160 30% 88%;
+    --ring: 165 75% 35%;
+    --gradient-from: 165 75% 42%;
+    --gradient-to: 190 80% 46%;
+    --chat-bg: 160 25% 93%;
+    --glow-a: 165 65% 88%;
+    --glow-b: 190 75% 90%;
+    --sidebar: 160 28% 96%;
+  }
+
+  /* 暖夜（dusk）：炭棕黑底 + 琥珀金主色 + 金渐变，暖阳的深色配套 */
   .dusk {
-    --background: 245 35% 16%;
-    --foreground: 220 25% 90%;
-    --card: 245 32% 20%;
-    --card-foreground: 220 25% 90%;
-    --popover: 245 32% 20%;
-    --popover-foreground: 220 25% 90%;
-    --primary: 262 83% 68%;
-    --primary-foreground: 245 35% 12%;
-    --secondary: 245 25% 27%;
-    --secondary-foreground: 220 25% 90%;
-    --muted: 245 25% 27%;
-    --muted-foreground: 220 15% 70%;
-    --accent: 245 25% 27%;
-    --accent-foreground: 220 25% 90%;
-    --destructive: 0 62% 45%;
-    --destructive-foreground: 220 25% 90%;
-    --border: 245 22% 30%;
-    --input: 245 22% 30%;
-    --ring: 262 83% 68%;
+    --background: 30 28% 9%;
+    --foreground: 38 25% 90%;
+    --card: 30 24% 12%;
+    --card-foreground: 38 25% 90%;
+    --popover: 30 22% 14%;
+    --popover-foreground: 38 25% 90%;
+    --primary: 38 88% 55%;
+    --primary-foreground: 30 30% 12%;
+    --secondary: 32 22% 16%;
+    --secondary-foreground: 38 25% 90%;
+    --muted: 32 22% 16%;
+    --muted-foreground: 35 15% 65%;
+    --accent: 32 25% 20%;
+    --accent-foreground: 38 25% 90%;
+    --destructive: 8 62% 48%;
+    --destructive-foreground: 38 25% 90%;
+    --border: 32 18% 20%;
+    --input: 32 18% 20%;
+    --ring: 38 88% 55%;
+    --gradient-from: 36 90% 58%;
+    --gradient-to: 42 92% 64%;
+    --chat-bg: 30 25% 12%;
+    --glow-a: 38 85% 16%;
+    --glow-b: 25 60% 13%;
+    --sidebar: 30 26% 11%;
   }
 }
 
@@ -124,6 +185,17 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* 主题氛围背景：顶部主色光晕 + 底部辅色光晕（随主题渐变变量切换） */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      radial-gradient(1100px 680px at 88% -12%, hsl(var(--glow-a) / 0.5), transparent 65%),
+      radial-gradient(900px 640px at -8% 108%, hsl(var(--glow-b) / 0.42), transparent 65%);
   }
   /* 文本选中 */
   ::selection {
@@ -159,7 +231,7 @@
     border-color: rgba(31, 35, 41, 0.05);
   }
   .card:hover {
-    box-shadow: 0 4px 16px rgba(59, 111, 232, 0.1);
+    box-shadow: 0 4px 16px rgba(31, 35, 41, 0.1);
   }
 
   .input {
@@ -170,13 +242,26 @@
     @apply inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
   }
 
-  /* 主按钮：简约纯色 + 轻投影 */
+  /* 主按钮：主题渐变（清新靓丽点缀）+ 轻投影 */
   .btn-primary {
-    @apply btn bg-primary text-primary-foreground hover:bg-primary/90;
-    box-shadow: 0 2px 6px rgba(59, 111, 232, 0.25);
+    @apply btn text-primary-foreground;
+    background-image: linear-gradient(135deg, hsl(var(--gradient-from)), hsl(var(--gradient-to)));
+    box-shadow: 0 2px 6px hsl(var(--gradient-from) / 0.35);
   }
   .btn-primary:hover {
-    box-shadow: 0 4px 12px rgba(59, 111, 232, 0.35);
+    filter: brightness(1.05);
+    box-shadow: 0 4px 12px hsl(var(--gradient-from) / 0.45);
+  }
+
+  /* shadcn Button default variant：主题渐变背景 */
+  .btn-gradient {
+    background-image: linear-gradient(135deg, hsl(var(--gradient-from)), hsl(var(--gradient-to)));
+    color: hsl(var(--primary-foreground));
+    box-shadow: 0 2px 6px hsl(var(--gradient-from) / 0.35);
+  }
+  .btn-gradient:hover {
+    filter: brightness(1.05);
+    box-shadow: 0 4px 12px hsl(var(--gradient-from) / 0.45);
   }
 
   .btn-secondary {

@@ -52,6 +52,8 @@ import {
 import { useToast } from '@/components/ui/use-toast'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { PhaseTree } from '@/components/projects/phase-tree'
+import { useIsMobile } from '@/hooks/use-is-mobile'
+import { MobileProjectDetail } from '@/components/mobile/project-detail'
 import { ProgressRing } from '@/components/projects/progress-ring'
 import { ImAvatar } from '@/components/im/message-bubble'
 import { MemberPicker, type PickerMember } from '@/components/im/member-picker'
@@ -131,6 +133,7 @@ export default function ProjectDetailPage() {
   const params = useParams<{ id: string }>()
   const projectId = params.id
   const router = useRouter()
+  const isMobile = useIsMobile()
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
@@ -381,6 +384,42 @@ export default function ProjectDetailPage() {
   const canDeleteProject = project.myRole === 'ADMIN' || project.myRole === 'OWNER'
 
   return (
+    <>
+      {isMobile ? (
+        <MobileProjectDetail
+          project={project}
+          fileSummary={fileSummary}
+          isLegacy={isLegacy}
+          members={members}
+          phasesCount={tree.phases.length}
+          projectFiles={projectFiles}
+          me={me}
+          actions={{
+            edit: project.can.edit ? openEdit : null,
+            permission: project.can.edit ? () => setPermOpen(true) : null,
+            view: () => setViewOpen(true),
+            ai: runAiSummary,
+            aiBusy,
+            archive: project.can.archive ? doArchive : null,
+            archiving,
+            deleteProject: canDeleteProject ? () => setDeleteOpen(true) : null,
+            board: project.can.edit ? () => setBoardOpen(true) : null,
+            addMember: project.can.edit ? () => setMemberPickerOpen(true) : null,
+            removeMember: handleRemoveMember,
+            removingId,
+            deleteFileReq: (f) => setFileReqDeleting(f),
+            goFiles: (requirementId) =>
+              router.push(`/files?projectId=${projectId}&requirementId=${requirementId}`),
+          }}
+          extraCards={
+            <>
+              <PurchaseSummaryCard projectId={params.id} />
+              <ExpenseClaimCard projectId={params.id} myRole={project.myRole} me={me} />
+            </>
+          }
+          legacyCard={<LegacyProjectCard project={project} />}
+        />
+      ) : (
     <div className="w-full space-y-6 p-4 md:p-6">
       {/* ── 项目头卡 ── */}
       <Card>
@@ -711,8 +750,10 @@ export default function ProjectDetailPage() {
           <PhaseTree projectId={projectId} />
         </div>
       )}
+    </div>
+      )}
 
-      {/* ── 编辑弹窗 ── */}
+      {/* ── 编辑弹窗（桌面/移动共用，Portal 渲染） ── */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -905,7 +946,7 @@ export default function ProjectDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   )
 }
 

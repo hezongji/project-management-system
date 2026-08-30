@@ -4,6 +4,12 @@
 
 ## 功能概览
 
+### 移动端（手机浏览器 / Android App）
+- 全站移动优先适配：底部 Tab 导航（首页/项目/待办/我的）+ 微信式卡片流，12 个主页面全部适配（工作台/项目/任务/待办/采购/文件/组织/设置/帮助/IM）
+- 采购审批移动端完整保留（底部抽屉 Sheet 卡片流，审批流程/金额口径零改动）
+- 双 Android App（Kotlin WebView 壳）：**PM 项目管理**（全功能主站）+ **PM 聊天**（专注 IM）
+- 六套主题（浅色/暖阳/晴蓝/薄荷/深空蓝/暖夜）全平台生效，主按钮/Logo 渐变点缀
+
 ### 项目管理系统（Web）
 - 项目管理：项目台账、阶段、任务、交付物
 - 采购管理：采购申请、供应商、订单、到货
@@ -80,6 +86,13 @@ cd im-server && node src/index.js   # IM 服务（:3002）
 > ⚠️ `.env` 文件含敏感配置（数据库密码、JWT_SECRET、AI key），已加入 `.gitignore`，切勿提交。
 
 ## Android App 打包
+
+| App | 工程 | 加载目标 |
+|-----|------|---------|
+| PM 项目管理 |  | https://pm.hezongji.cn/（主站，移动端已适配） |
+| PM 聊天 |  | https://pm.hezongji.cn/im（IM 专页） |
+
+构建（服务器需 JDK 17 + Android SDK + Gradle）：（PM 聊天）；PM 主站壳在  内  +  +  签名。
 
 ```bash
 # 需 JDK 17 + Android SDK (compileSdk 34)

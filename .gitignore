@@ -170,3 +170,12 @@ server.js
 
 # QA 驾驶舱运行时数据（run-cockpit.mjs / qa-cockpit API 自动生成，勿提交）
 scripts/qa/qa-runs.json
+
+# PM 主站安卓壳工程：构建产物与密钥（勿提交，与 mobile-app 同规则）
+pm-app-android/build/
+pm-app-android/.gradle/
+pm-app-android/local.properties
+pm-app-android/*.jks
+pm-app-android/keystore/
+pm-app-android/app/build/
+pm-app-android/.idea/

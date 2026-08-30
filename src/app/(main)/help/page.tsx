@@ -70,7 +70,7 @@ export default function HelpPage() {
           </p>
           <Link
             href="/download"
-            className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/15"
+            className="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/15"
           >
             <Smartphone className="h-4 w-4" />
             手机聊天 App（PM 聊天）下载
@@ -78,9 +78,38 @@ export default function HelpPage() {
         </div>
       </div>
 
-      {/* ── 左侧：分类导航（所有屏幕保留，2026-08-23 用户要求；不再用 lg:hidden 隐藏） ── */}
+      {/* ── 移动端：分类导航横向滚动条（<lg 显示）── */}
+      <nav
+        className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1 lg:hidden"
+        style={{ scrollbarWidth: 'none' }}
+        aria-label="帮助分类"
+      >
+        {HELP_SECTIONS.map((section) => {
+          const active = activeId === section.id
+          return (
+            <button
+              key={section.id}
+              type="button"
+              data-active={active}
+              onClick={() => scrollTo(section.id)}
+              aria-current={active ? 'true' : undefined}
+              className={cn(
+                'flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-sm font-medium transition-colors',
+                active
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground active:bg-muted/70',
+              )}
+            >
+              <section.icon className="h-4 w-4 shrink-0" />
+              <span>{section.title}</span>
+            </button>
+          )
+        })}
+      </nav>
+
+      {/* ── 桌面：左侧 sticky 分类导航（≥lg 显示） ── */}
       <div className="flex items-start gap-6">
-      <nav className="sticky top-4 w-40 shrink-0 lg:top-20 lg:w-52" aria-label="帮助分类">
+      <nav className="sticky top-4 hidden w-40 shrink-0 lg:top-20 lg:block lg:w-52" aria-label="帮助分类">
           <div ref={desktopNavRef} className="space-y-1 rounded-lg border bg-card p-2">
             {HELP_SECTIONS.map((section) => {
               const active = activeId === section.id
