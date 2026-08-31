@@ -1,6 +1,14 @@
 # PM 项目管理系统 + 企业即时通讯（IM）
 
-一套面向工程项目型企业的管理系统：项目全生命周期管理（阶段/任务/文件/采购/费用）+ 内置企业微信式即时通讯，含独立的 Android 聊天 App。
+面向工程项目型企业的**开源**管理系统：项目全生命周期（阶段 / 任务 / 文件 / 采购 / 费用）+ 内置企业微信式即时通讯，含独立 Android App。
+
+[![License MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript)](https://www.typescriptlang.org)
+[![Socket.IO](https://img.shields.io/badge/Socket.IO-realtime-010101)](https://socket.io)
+
+> 🔑 **在线体验**：<https://pm.hezongji.cn> · 演示账号 `chenmuzhi` / `demo123456`
+> 📦 **Android App 下载**：<https://github.com/hezongji/project-management-system/releases>
 
 ## 功能概览
 
@@ -85,21 +93,28 @@ cd im-server && node src/index.js   # IM 服务（:3002）
 
 > ⚠️ `.env` 文件含敏感配置（数据库密码、JWT_SECRET、AI key），已加入 `.gitignore`，切勿提交。
 
-## Android App 打包
+## Android App
 
-| App | 工程 | 加载目标 |
-|-----|------|---------|
-| PM 项目管理 |  | https://pm.hezongji.cn/（主站，移动端已适配） |
-| PM 聊天 |  | https://pm.hezongji.cn/im（IM 专页） |
+两个独立的 Kotlin WebView 壳 App，可直接从 [Releases](https://github.com/hezongji/project-management-system/releases) 下载安装 APK：
 
-构建（服务器需 JDK 17 + Android SDK + Gradle）：（PM 聊天）；PM 主站壳在  内  +  +  签名。
+| App | 工程 | applicationId | 加载目标 |
+|-----|------|---------------|---------|
+| PM 项目管理 | `pm-app-android/` | `com.hezongji.pmapp` | https://pm.hezongji.cn/（主站，移动端已适配） |
+| PM 聊天 | `mobile-app/` | `com.hezongji.pmchat` | https://pm.hezongji.cn/im（IM 专页） |
+
+> 安装自签 APK 需在系统设置中允许「安装未知来源应用」；若浏览器/系统提示风险，属自签证书正常现象。
+
+### 自行构建（服务器需 JDK 17 + Android SDK + Gradle）
 
 ```bash
-# 需 JDK 17 + Android SDK (compileSdk 34)
+# PM 聊天（mobile-app/）
 bash scripts/build-apk.sh   # 产出 mobile-app/app/build/outputs/apk/release/pm-chat-<version>.apk
+
+# PM 项目管理（pm-app-android/，同法在对应目录执行 gradle assembleRelease）
+cd pm-app-android && gradle assembleRelease
 ```
 
-首次运行会生成自签 keystore（`mobile-app/keystore/`，已 gitignore），**请务必异地备份**——丢失会导致已装用户必须卸载重装。
+首次构建会生成自签 keystore（已 gitignore），**请务必异地备份**——丢失会导致已装用户必须卸载重装。
 
 ## 部署
 
