@@ -10,6 +10,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/tasks', priority: 0.8, changeFrequency: 'daily' as const },
     { path: '/login', priority: 0.5, changeFrequency: 'monthly' as const },
     { path: '/register', priority: 0.5, changeFrequency: 'monthly' as const },
+    { path: '/docs', priority: 0.7, changeFrequency: 'weekly' as const },
+    ...['project', 'tasks', 'purchase', 'expense', 'drive', 'im', 'android', 'mcp', 'quickstart', 'deployment', 'faq'].map(
+      (slug) => ({
+        path: `/docs/${slug}`,
+        priority: 0.6,
+        changeFrequency: 'monthly' as const,
+      }),
+    ),
   ]
 
   return routes.map((route) => ({

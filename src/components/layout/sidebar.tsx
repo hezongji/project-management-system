@@ -56,6 +56,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   HelpCircle,
+  BookOpen,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
@@ -114,7 +115,10 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: null,
-    items: [{ name: '帮助中心', href: '/help', icon: HelpCircle }], // 无 pageKey：不参与页面权限控制，全员可见
+    items: [
+      { name: '帮助中心', href: '/help', icon: HelpCircle }, // 无 pageKey：不参与页面权限控制，全员可见
+      { name: '帮助文档', href: '/docs', icon: BookOpen }, // 文档站（公开路由，对标 Kaneo docs）
+    ],
   },
 ]
 
