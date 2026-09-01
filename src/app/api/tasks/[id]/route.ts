@@ -24,6 +24,7 @@ import { requireCan, permsOf, invalidatePerms } from '@/lib/permission'
 import { visibleTaskFilter } from '@/lib/data-visibility'
 import { onTaskChanged, EngineError } from '@/lib/phase-engine'
 import { ensureTaskTodo } from '@/lib/todo-service'
+import { notifyTaskStatusChanged, notifyTaskAssigned } from '@/lib/notify/webhook'
 import type { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
@@ -110,6 +111,12 @@ export const PATCH = apiHandler(async (request: NextRequest, context: RouteConte
     throw ApiError.badRequest('请求体不能为空（可更新：title/description/status/priority/assigneeId/dueDate）')
   }
 
+  // P2-2 通知上下文：记录变更前后关键信息（供事务后 fire-and-forget 使用）
+  let oldStatus = ''
+  let oldAssigneeId: string | null = null
+  let projectName: string | undefined
+  let assigneeName: string | undefined
+
   const result = await prisma.$transaction(async (tx) => {
     const task = await tx.task.findUnique({
       where: { id },
@@ -124,11 +131,14 @@ export const PATCH = apiHandler(async (request: NextRequest, context: RouteConte
       },
     })
     if (!task) throw new EngineError(404, '任务不存在', 'NOT_FOUND')
+    oldStatus = task.status
+    oldAssigneeId = task.assigneeId
 
     const project = await tx.project.findUnique({
       where: { id: task.projectId },
-      select: { isArchived: true },
+      select: { isArchived: true, name: true },
     })
+    projectName = project?.name
     if (project?.isArchived) {
       throw new EngineError(403, '项目已归档，任务只读', 'FORBIDDEN')
     }
@@ -136,9 +146,10 @@ export const PATCH = apiHandler(async (request: NextRequest, context: RouteConte
     if (body.assigneeId) {
       const target = await tx.user.findUnique({
         where: { id: body.assigneeId },
-        select: { id: true },
+        select: { id: true, name: true },
       })
       if (!target) throw new EngineError(400, `assigneeId 不存在：${body.assigneeId}`)
+      assigneeName = target.name
     }
 
     const data: Prisma.TaskUpdateInput = {}
@@ -196,6 +207,27 @@ export const PATCH = apiHandler(async (request: NextRequest, context: RouteConte
 
     return updated
   })
+
+  // P2-2 通知集成：状态变更 / 指派 → 企业微信/钉钉 webhook（fire-and-forget，失败绝不影响主流程）
+  if (body.status !== undefined && body.status !== oldStatus) {
+    void notifyTaskStatusChanged({
+      projectId: result.projectId,
+      projectName,
+      taskId: result.id,
+      taskTitle: result.title,
+      fromStatus: oldStatus,
+      toStatus: body.status,
+    }).catch(() => {})
+  }
+  if (body.assigneeId !== undefined && body.assigneeId !== oldAssigneeId && body.assigneeId) {
+    void notifyTaskAssigned({
+      projectId: result.projectId,
+      projectName,
+      taskId: result.id,
+      taskTitle: result.title,
+      assigneeName,
+    }).catch(() => {})
+  }
 
   // 任务状态/字段变更 → 阶段状态机联动（§7.5）
   const linkage = await onTaskChanged(id).catch(() => null)

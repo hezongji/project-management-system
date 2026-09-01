@@ -15,6 +15,7 @@ import { apiHandler, created, requireAuth, ApiError } from '@/lib/api-helpers'
 import { ensureTaskTodo, taskAssignedPayload } from '@/lib/todo-service'
 import { requireCan } from '@/lib/permission'
 import { onTaskChanged, EngineError } from '@/lib/phase-engine'
+import { notifyTaskCreated, notifyTaskAssigned } from '@/lib/notify/webhook'
 
 export const dynamic = 'force-dynamic'
 
@@ -116,6 +117,26 @@ export const POST = apiHandler(async (request: NextRequest, context: RouteContex
 
   // 新任务改变阶段任务分母 → 状态机联动（§7.5）
   const linkage = await onTaskChanged(task.id).catch(() => null)
+
+  // P2-2 通知集成：阶段下任务创建 → 企业微信/钉钉 webhook（fire-and-forget，失败绝不影响主流程）
+  void notifyTaskCreated({
+    projectId: task.projectId,
+    projectName: task.project?.name,
+    taskId: task.id,
+    taskTitle: task.title,
+    operatorName: task.creator?.name,
+    assigneeName: task.assignee?.name ?? undefined,
+  }).catch(() => {})
+  if (body.assigneeId) {
+    void notifyTaskAssigned({
+      projectId: task.projectId,
+      projectName: task.project?.name,
+      taskId: task.id,
+      taskTitle: task.title,
+      operatorName: task.creator?.name,
+      assigneeName: task.assignee?.name ?? undefined,
+    }).catch(() => {})
+  }
 
   return created({ ...task, _linkage: linkage }, '任务创建成功')
 })

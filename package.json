@@ -21,6 +21,7 @@
     "postinstall": "prisma generate",
     "postbuild": "node scripts/fix-backslash.cjs",
     "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s",
+    "notify:test": "node scripts/test-notify.mjs",
     "prepare": "husky"
   },
   "dependencies": {

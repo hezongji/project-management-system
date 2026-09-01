@@ -4,6 +4,7 @@ import { apiHandler, okPage, created, parsePagination, requireAuth, ApiError } f
 import { ensureTaskTodo, taskAssignedPayload } from '@/lib/todo-service'
 import { visibleTaskFilter } from '@/lib/data-visibility'
 import { requireCan } from '@/lib/permission'
+import { notifyTaskCreated, notifyTaskAssigned } from '@/lib/notify/webhook'
 import { z } from 'zod'
 
 const createTaskSchema = z.object({
@@ -235,6 +236,26 @@ export const POST = apiHandler(async (request: NextRequest) => {
 
     return createdTask
   })
+
+  // P2-2 通知集成：任务创建 → 企业微信/钉钉 webhook（fire-and-forget，失败绝不影响主流程）
+  void notifyTaskCreated({
+    projectId: validatedData.projectId,
+    projectName: project.name,
+    taskId: task.id,
+    taskTitle: task.title,
+    operatorName: task.creator?.name,
+    assigneeName: task.assignee?.name ?? undefined,
+  }).catch(() => {})
+  if (validatedData.assigneeId) {
+    void notifyTaskAssigned({
+      projectId: validatedData.projectId,
+      projectName: project.name,
+      taskId: task.id,
+      taskTitle: task.title,
+      operatorName: task.creator?.name,
+      assigneeName: task.assignee?.name ?? undefined,
+    }).catch(() => {})
+  }
 
   return created(task, '任务创建成功')
 })
