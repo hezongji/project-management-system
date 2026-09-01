@@ -40,6 +40,12 @@
 - 附件自动归档：项目群附件自动入项目文件夹，普通聊天附件入「聊天记录」共享文件夹
 - 群公告、消息免打扰、会话置顶/删除、未读聚合
 
+### AI 工具接入（MCP）
+- 内置 MCP（Model Context Protocol）服务端：让 Claude Code / Cursor / Codex 直接管理项目与任务（列出项目、创建/更新任务、查待办）
+- 端点 `POST /api/mcp`，复用系统 JWT 鉴权，权限随用户隔离（非管理员仅见自己参与的项目）
+- 7 个工具：`list_projects` / `get_project` / `list_tasks` / `get_task` / `list_my_tasks` / `create_task` / `update_task`
+- 接入方式详见 [docs/mcp.md](docs/mcp.md)
+
 ## 界面预览
 
 | 工作台 | 文件管理（项目网盘） |

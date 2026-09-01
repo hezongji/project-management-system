@@ -3,7 +3,8 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   // 网盘化（20260830-drive-war）：zip 流式打包依赖为 CJS callable，禁止 webpack 打包改写 require 语义
-  serverExternalPackages: ['archiver'],
+  // MCP（2026-09-01）：官方 SDK 为 ESM + Node 内置模块，外部化避免 standalone 构建 trace 异常
+  serverExternalPackages: ['archiver', '@modelcontextprotocol/sdk'],
   images: {
     remotePatterns: [
       {

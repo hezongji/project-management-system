@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pm": {
+      "type": "http",
+      "url": "https://pm.hezongji.cn/api/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+      }
+    }
+  }
+}
