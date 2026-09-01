@@ -153,6 +153,7 @@ prisma/data/generated/
 # 部署/运维脚本（含服务器密码/IP，不提交）
 *.sh
 !scripts/build-apk.sh
+!deploy/install.sh
 DEPLOYMENT_GUIDE.md
 .audit/
 

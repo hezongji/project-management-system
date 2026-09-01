@@ -1,0 +1,31 @@
+# =========================================================================
+# Caddyfile — 项目管理系统 HTTPS 反代（可选，profile: https）
+#
+# 用途：一条命令自动申请 Let's Encrypt 证书并启用 HTTPS。
+# 域名从环境变量 DOMAIN 注入（install.sh 生成 .env 时写入）。
+# Caddy 会自动完成 HTTP→HTTPS 重定向与证书续期。
+#
+# 路由：
+#   /socket.io/*  → im:3002   （Socket.IO，Caddy 自动处理 WebSocket 升级）
+#   其余所有路径    → app:3000  （页面 + REST API）
+# =========================================================================
+
+{$DOMAIN} {
+    encode gzip
+
+    # Socket.IO（IM 服务）
+    handle /socket.io/* {
+        reverse_proxy im:3002
+    }
+
+    # APK 分发直出（如已产出，可选挂载 downloads 卷）
+    handle /downloads/* {
+        root * /srv
+        file_server
+    }
+
+    # 其余 → 主服务
+    handle {
+        reverse_proxy app:3000
+    }
+}

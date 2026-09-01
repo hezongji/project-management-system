@@ -28,6 +28,17 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
 COPY . .
 
+# NEXT_PUBLIC_* 为构建期内联变量（会被固化进客户端 bundle），
+# 通过 compose 的 build.args 注入站点 origin，避免客户端回退 localhost
+ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_WS_URL
+ARG NEXT_PUBLIC_APP_NAME
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
+    NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
+    NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL \
+    NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
+
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # 生成 Prisma Client 并构建 standalone 产物
@@ -60,6 +71,9 @@ COPY --from=build --chown=nextjs:nodejs /app/prisma ./prisma
 # 生成好的 Prisma Client 运行时依赖（standalone 已内联大部分，此处兜底）
 COPY --from=build --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
+# Prisma CLI（供首次部署在容器内执行 `npx prisma migrate deploy`，含 engines）
+COPY --from=build --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
+COPY --from=build --chown=nextjs:nodejs /app/node_modules/.bin ./node_modules/.bin
 
 # 文件卷挂载点
 RUN mkdir -p /data/pm-files && chown -R nextjs:nodejs /data
@@ -68,8 +82,8 @@ USER nextjs
 
 EXPOSE 3000
 
-# 健康检查
+# 健康检查（根路径任意 HTTP 响应即视为存活；本项目无 /api/health 路由）
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:3000/api/health || exit 1
+  CMD curl -s -o /dev/null http://localhost:3000/ || exit 1
 
 CMD ["dumb-init", "node", "server.js"]
